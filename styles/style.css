@@ -326,6 +326,13 @@ button {
   transition: background-color 150ms ease;
 }
 
+button.button--compact {
+  width: fit-content;
+  min-height: 38px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
 button:hover {
   background: #2648b2;
 }
