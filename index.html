@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Formulário para cadastrar o nome de um funcionário."
+    />
+    <title>Cadastro</title>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <a class="sidebar__brand" href="/cadastro" aria-label="Gestão de equipe">
+          <span class="sidebar__brand-icon" aria-hidden="true">C</span>
+          <span>Gestão de equipe</span>
+        </a>
+        <nav class="sidebar__nav" aria-label="Menu principal">
+          <a class="nav-item" href="/cadastro" data-view="cadastro">
+            <span class="nav-item__icon" aria-hidden="true">+</span>
+            <span>Cadastro</span>
+          </a>
+          <a class="nav-item" href="/diaria" data-view="diaria">
+            <span class="nav-item__icon" aria-hidden="true">$</span>
+            <span>Diaria</span>
+          </a>
+          <a class="nav-item" href="/excluir-dados" data-view="excluir">
+            <span class="nav-item__icon" aria-hidden="true">−</span>
+            <span>Excluir dados</span>
+          </a>
+          <a class="nav-item" href="/pesquisa" data-view="pesquisa">
+            <span class="nav-item__icon" aria-hidden="true">⌕</span>
+            <span>Pesquisa</span>
+          </a>
+        </nav>
+        <p class="sidebar__footer">Cadastro de funcionários</p>
+      </aside>
+
+      <main class="page">
+        <section class="card" aria-labelledby="page-title">
+          <div class="card__icon" aria-hidden="true">C</div>
+          <p class="card__eyebrow">GESTÃO DE EQUIPE</p>
+          <h1 id="page-title">Cadastro</h1>
+          <p id="page-description" class="card__description">
+            Informe o nome do funcionário para iniciar o cadastro.
+          </p>
+
+          <form id="employee-form">
+            <label for="employee-name">Nome do funcionário</label>
+            <input
+              id="employee-name"
+              name="employeeName"
+              type="text"
+              placeholder="Ex.: Ana Silva"
+              autocomplete="name"
+              required
+            />
+            <button type="submit">Salvar funcionário</button>
+            <p id="form-message" class="form-message" role="status" aria-live="polite"></p>
+          </form>
+          <form id="daily-form" hidden>
+            <div class="daily-fields">
+              <div class="field">
+                <label for="daily-employee">Funcionario</label>
+                <select id="daily-employee" name="funcionarioId" required>
+                  <option value="">Carregando funcionários...</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="daily-date">Data</label>
+                <input id="daily-date" name="data" type="date" required />
+              </div>
+              <div class="field">
+                <label for="daily-amount">Diária</label>
+                <input
+                  id="daily-amount"
+                  name="diaria"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="0,00"
+                  required
+                />
+              </div>
+            </div>
+            <button type="submit">Salvar</button>
+            <p id="daily-form-message" class="form-message" role="status" aria-live="polite"></p>
+          </form>
+          <form id="delete-form" hidden>
+            <div class="daily-fields">
+              <div class="field">
+                <label for="delete-employee">Funcionário</label>
+                <select id="delete-employee" name="funcionarioId" required>
+                  <option value="">Carregando funcionários...</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="delete-date">Data</label>
+                <input id="delete-date" name="data" type="date" required />
+              </div>
+            </div>
+            <button type="submit">Excluir data</button>
+            <p id="delete-form-message" class="form-message" role="status" aria-live="polite"></p>
+          </form>
+          <form id="search-form" class="search-fields" hidden>
+            <div class="search-fields__filters">
+              <div class="field">
+                <label for="search-employee">Funcionário</label>
+                <select id="search-employee" name="funcionarioId" required>
+                  <option value="">Carregando funcionários...</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="search-month">Mês</label>
+                <select id="search-month" name="mes">
+                  <option value="">Todos os meses</option>
+                  <option value="01">Janeiro</option>
+                  <option value="02">Fevereiro</option>
+                  <option value="03">Março</option>
+                  <option value="04">Abril</option>
+                  <option value="05">Maio</option>
+                  <option value="06">Junho</option>
+                  <option value="07">Julho</option>
+                  <option value="08">Agosto</option>
+                  <option value="09">Setembro</option>
+                  <option value="10">Outubro</option>
+                  <option value="11">Novembro</option>
+                  <option value="12">Dezembro</option>
+                </select>
+              </div>
+            </div>
+            <div class="search-fields__actions">
+              <button type="submit">Pesquisar</button>
+              <button id="generate-report" class="button-secondary" type="button">
+                Gerar relatório
+              </button>
+            </div>
+            <p id="search-form-message" class="form-message" role="status" aria-live="polite"></p>
+          </form>
+          <section id="search-results" class="search-results" aria-live="polite" hidden>
+            <h2 class="search-results__title">Resultado da pesquisa</h2>
+            <p id="search-results-empty" class="search-results__empty" hidden>
+              Nenhum dado encontrado para os filtros selecionados.
+            </p>
+            <div id="search-results-table-wrapper" class="search-results__table-wrapper" hidden>
+              <table class="results-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Funcionário</th>
+                    <th scope="col">Data</th>
+                    <th scope="col">Diária</th>
+                  </tr>
+                </thead>
+                <tbody id="search-results-body"></tbody>
+              </table>
+            </div>
+          </section>
+          <p id="section-message" class="section-message" role="status" aria-live="polite" hidden></p>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
