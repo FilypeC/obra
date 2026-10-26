@@ -11,18 +11,100 @@ database.exec(`
   CREATE TABLE IF NOT EXISTS funcionarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     Nome TEXT NOT NULL CHECK (length(trim(Nome)) > 0)
-  )
+  );
+  CREATE TABLE IF NOT EXISTS diarias (
+    funcionario_id INTEGER NOT NULL REFERENCES funcionarios(id),
+    Data TEXT NOT NULL CHECK (length(Data) = 10),
+    Diaria REAL NOT NULL CHECK (Diaria > 0),
+    PRIMARY KEY (funcionario_id, Data)
+  );
 `);
 
-const employeeColumns = new Set(
-  (database.prepare("PRAGMA table_info(funcionarios)").all() as Array<{ name: string }>)
-    .map(({ name }) => name),
-);
-if (!employeeColumns.has("Data")) {
-  database.exec('ALTER TABLE funcionarios ADD COLUMN "Data" TEXT');
-}
-if (!employeeColumns.has("Diaria")) {
-  database.exec('ALTER TABLE funcionarios ADD COLUMN "Diaria" REAL');
+const employeeColumns = database.prepare("PRAGMA table_info(funcionarios)")
+  .all() as Array<{ name: string }>;
+const dailyColumns = database.prepare("PRAGMA table_info(diarias)")
+  .all() as Array<{ name: string; pk: number }>;
+const dailyForeignKeys = database.prepare("PRAGMA foreign_key_list(diarias)")
+  .all() as Array<{ table: string; from: string; to: string }>;
+const expectedEmployeeColumns = ["id", "Nome"];
+const expectedDailyColumns = ["funcionario_id", "Data", "Diaria"];
+const schemaIsCurrent =
+  employeeColumns.map(({ name }) => name).join(",") === expectedEmployeeColumns.join(",") &&
+  dailyColumns.map(({ name }) => name).join(",") === expectedDailyColumns.join(",") &&
+  dailyColumns.map(({ pk }) => pk).join(",") === "1,2,0" &&
+  dailyForeignKeys.some(
+    ({ table, from, to }) => table === "funcionarios" && from === "funcionario_id" && to === "id",
+  );
+
+if (!schemaIsCurrent) {
+  const legacyDailyColumns = new Set(employeeColumns.map(({ name }) => name));
+  const hasLegacyDailyData = legacyDailyColumns.has("Data") && legacyDailyColumns.has("Diaria");
+
+  database.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE funcionarios_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        Nome TEXT NOT NULL CHECK (length(trim(Nome)) > 0)
+      );
+      INSERT INTO funcionarios_new (id, Nome)
+        SELECT id, Nome FROM funcionarios;
+
+      CREATE TABLE diarias_new (
+        funcionario_id INTEGER NOT NULL REFERENCES funcionarios_new(id),
+        Data TEXT NOT NULL CHECK (length(Data) = 10),
+        Diaria REAL NOT NULL CHECK (Diaria > 0),
+        PRIMARY KEY (funcionario_id, Data)
+      );
+    `);
+
+    const oldDailyTableExists = database.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'diarias'",
+    ).get();
+    if (oldDailyTableExists && dailyColumns.some(({ name }) => name === "id")) {
+      database.exec(`
+        INSERT INTO diarias_new (funcionario_id, Data, Diaria)
+          SELECT funcionario_id, Data, Diaria
+          FROM diarias
+          WHERE 1
+          ORDER BY id
+          ON CONFLICT (funcionario_id, Data) DO UPDATE SET Diaria = excluded.Diaria;
+      `);
+    } else if (oldDailyTableExists) {
+      database.exec(`
+        INSERT INTO diarias_new (funcionario_id, Data, Diaria)
+          SELECT funcionario_id, Data, Diaria
+          FROM diarias
+          WHERE 1
+          ON CONFLICT (funcionario_id, Data) DO UPDATE SET Diaria = excluded.Diaria;
+      `);
+    }
+
+    if (hasLegacyDailyData) {
+      database.exec(`
+        INSERT INTO diarias_new (funcionario_id, Data, Diaria)
+          SELECT id, Data, Diaria
+          FROM funcionarios
+          WHERE Data IS NOT NULL AND Diaria IS NOT NULL
+          ON CONFLICT (funcionario_id, Data) DO UPDATE SET Diaria = excluded.Diaria;
+      `);
+    }
+
+    database.exec(`
+      DROP TABLE diarias;
+      DROP TABLE funcionarios;
+      ALTER TABLE funcionarios_new RENAME TO funcionarios;
+      ALTER TABLE diarias_new RENAME TO diarias;
+      COMMIT;
+      PRAGMA foreign_keys = ON;
+    `);
+  } catch (error) {
+    if (database.isTransaction) {
+      database.exec("ROLLBACK");
+    }
+    database.exec("PRAGMA foreign_keys = ON");
+    throw error;
+  }
 }
 
 function readBody(
@@ -142,8 +224,11 @@ function employeeApi(): Plugin {
 
       try {
         const result = database.prepare(
-          'UPDATE funcionarios SET "Data" = ?, "Diaria" = ? WHERE id = ?',
-        ).run(date, amount, funcionarioId);
+          `INSERT INTO diarias (funcionario_id, "Data", "Diaria")
+           VALUES (?, ?, ?)
+           ON CONFLICT (funcionario_id, "Data")
+           DO UPDATE SET "Diaria" = excluded."Diaria"`,
+        ).run(funcionarioId, date, amount);
         if (result.changes === 0) {
           sendJson(response, 400, { error: "O funcionário selecionado não existe." });
           return;
@@ -183,7 +268,7 @@ function employeeApi(): Plugin {
 
       try {
         const result = database.prepare(
-          'UPDATE funcionarios SET "Data" = NULL, "Diaria" = NULL WHERE id = ? AND "Data" = ?',
+          'DELETE FROM diarias WHERE funcionario_id = ? AND "Data" = ?',
         ).run(funcionarioId, date);
         if (result.changes === 0) {
           sendJson(response, 404, { error: "Não há dados para esse funcionário e essa data." });
@@ -226,16 +311,18 @@ function employeeApi(): Plugin {
       try {
         const registros = month
           ? database.prepare(`
-          SELECT Nome, "Data", "Diaria"
-          FROM funcionarios
-          WHERE id = ? AND substr("Data", 6, 2) = ?
+          SELECT funcionarios.Nome, diarias."Data", diarias."Diaria"
+          FROM diarias
+          JOIN funcionarios ON funcionarios.id = diarias.funcionario_id
+          WHERE funcionarios.id = ? AND substr(diarias."Data", 6, 2) = ?
           ORDER BY "Data"
         `).all(funcionarioId, month)
           : database.prepare(`
-          SELECT Nome, "Data", "Diaria"
+          SELECT funcionarios.Nome, diarias."Data", diarias."Diaria"
           FROM funcionarios
-          WHERE id = ?
-          ORDER BY "Data"
+          LEFT JOIN diarias ON diarias.funcionario_id = funcionarios.id
+          WHERE funcionarios.id = ?
+          ORDER BY diarias."Data"
         `).all(funcionarioId);
         sendJson(response, 200, { registros });
       } catch (error) {
