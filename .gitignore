@@ -5,10 +5,11 @@ node_modules/
 dist/
 
 # Banco de dados local
-database/*.db
-database/*.db-journal
-database/*.db-shm
-database/*.db-wal
+backend/database/*.db
+backend/database/*.db-journal
+backend/database/*.db-shm
+backend/database/*.db-wal
+backend/logs/*.txt
 
 # Variáveis de ambiente
 .env
