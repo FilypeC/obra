@@ -97,6 +97,10 @@
             <span class="nav-item__icon" aria-hidden="true">◉</span>
             <span>Tipo de conta</span>
           </a>
+          <a class="nav-item" href="/historico-diarias" data-view="historico-diarias">
+            <span class="nav-item__icon" aria-hidden="true">↻</span>
+            <span>Histórico de diárias</span>
+          </a>
         </nav>
         <button id="logout-button" class="button-secondary button--compact" type="button">Sair</button>
         <p class="sidebar__footer">Cadastro de funcionários</p>
@@ -267,6 +271,28 @@
                   </tr>
                 </thead>
                 <tbody id="search-results-body"></tbody>
+              </table>
+            </div>
+          </section>
+          <section id="daily-history-section" class="search-results" aria-live="polite" hidden>
+            <h2 class="search-results__title">Alterações nas diárias</h2>
+            <p id="daily-history-empty" class="search-results__empty" hidden>
+              Nenhuma alteração de diária foi registrada.
+            </p>
+            <div id="daily-history-table-wrapper" class="search-results__table-wrapper" hidden>
+              <table class="results-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Código do usuário</th>
+                    <th scope="col">Código do funcionário</th>
+                    <th scope="col">Funcionário</th>
+                    <th scope="col">Data da diária</th>
+                    <th scope="col">Data e hora da interação</th>
+                    <th scope="col">Valor</th>
+                    <th scope="col">Tipo de alteração</th>
+                  </tr>
+                </thead>
+                <tbody id="daily-history-body"></tbody>
               </table>
             </div>
           </section>

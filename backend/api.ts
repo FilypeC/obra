@@ -157,6 +157,42 @@ if (!schemaIsCurrent) {
   }
 }
 
+database.exec(`
+  CREATE TABLE IF NOT EXISTS historico_diarias (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id INTEGER NOT NULL,
+    funcionario_id INTEGER NOT NULL,
+    funcionario_nome TEXT NOT NULL,
+    data_diaria TEXT NOT NULL CHECK (length(data_diaria) = 10),
+    data_hora TEXT NOT NULL,
+    diaria REAL NOT NULL CHECK (diaria > 0),
+    tipo TEXT NOT NULL CHECK (tipo IN ('insert', 'delete', 'update'))
+  );
+`);
+
+function recordDailyHistory(
+  usuarioId: number,
+  funcionarioId: number,
+  funcionarioNome: string,
+  date: string,
+  amount: number,
+  type: "insert" | "delete" | "update",
+): void {
+  database.prepare(`
+    INSERT INTO historico_diarias (
+      usuario_id, funcionario_id, funcionario_nome, data_diaria, data_hora, diaria, tipo
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    usuarioId,
+    funcionarioId,
+    funcionarioNome,
+    date,
+    new Date().toISOString(),
+    amount,
+    type,
+  );
+}
+
 function readBody(
   request: IncomingMessage,
   response: ServerResponse,
@@ -369,6 +405,7 @@ export function employeeApi(): Plugin {
         return;
       }
       sendJson(response, 200, {
+        id: current.session.funcionarioId,
         funcionario: employee.Nome,
         TipoConta: employee.TipoConta,
         precisaTrocarSenha: current.session.precisaTrocarSenha,
@@ -427,6 +464,7 @@ export function employeeApi(): Plugin {
           });
           setSessionCookie(request, response, token);
           sendJson(response, 200, {
+            id: employee.id,
             funcionario: employee.Nome,
             TipoConta: employee.TipoConta,
             precisaTrocarSenha,
@@ -774,6 +812,10 @@ export function employeeApi(): Plugin {
       }
 
       const current = getSession(request);
+      if (!current) {
+        sendJson(response, 401, { error: "Faça login para continuar." });
+        return;
+      }
       if (current?.session.funcionarioId === funcionarioId) {
         sendJson(response, 400, { error: "Não é possível deletar a própria conta." });
         return;
@@ -782,14 +824,27 @@ export function employeeApi(): Plugin {
       try {
         database.exec("BEGIN IMMEDIATE");
         const employee = database.prepare(
-          "SELECT id FROM funcionarios WHERE id = ?",
-        ).get(funcionarioId);
+          "SELECT id, Nome FROM funcionarios WHERE id = ?",
+        ).get(funcionarioId) as { id: number; Nome: string } | undefined;
         if (!employee) {
           database.exec("ROLLBACK");
           sendJson(response, 404, { error: "Funcionário não encontrado." });
           return;
         }
 
+        const dailyRecords = database.prepare(
+          'SELECT "Data", "Diaria" FROM diarias WHERE funcionario_id = ?',
+        ).all(funcionarioId) as Array<{ Data: string; Diaria: number }>;
+        for (const daily of dailyRecords) {
+          recordDailyHistory(
+            current.session.funcionarioId,
+            funcionarioId,
+            employee.Nome,
+            daily.Data,
+            daily.Diaria,
+            "delete",
+          );
+        }
         database.prepare("DELETE FROM diarias WHERE funcionario_id = ?").run(funcionarioId);
         database.prepare("DELETE FROM funcionarios WHERE id = ?").run(funcionarioId);
         database.exec("COMMIT");
@@ -863,6 +918,12 @@ export function employeeApi(): Plugin {
     request: IncomingMessage,
     response: ServerResponse,
   ) => {
+    const current = getSession(request);
+    if (!current) {
+      sendJson(response, 401, { error: "Faça login para continuar." });
+      return;
+    }
+
     if (request.method !== "POST") {
       response.writeHead(405, { Allow: "POST", "Content-Type": "application/json" });
       response.end(JSON.stringify({ error: "Método não permitido." }));
@@ -890,27 +951,45 @@ export function employeeApi(): Plugin {
         });
         return;
       }
+      if (funcionarioId !== current.session.funcionarioId) {
+        sendJson(response, 403, { error: "Só é permitido lançar diária para a sua própria conta." });
+        return;
+      }
 
       try {
         const employee = database.prepare(
-          "SELECT 1 FROM funcionarios WHERE id = ? AND Ativo = 1",
-        ).get(funcionarioId);
+          "SELECT id, Nome FROM funcionarios WHERE id = ? AND Ativo = 1",
+        ).get(funcionarioId) as { id: number; Nome: string } | undefined;
         if (!employee) {
           sendJson(response, 400, { error: "O funcionário selecionado não está ativo." });
           return;
         }
-        const result = database.prepare(
-          `INSERT INTO diarias (funcionario_id, "Data", "Diaria")
-           VALUES (?, ?, ?)
-           ON CONFLICT (funcionario_id, "Data")
-           DO UPDATE SET "Diaria" = excluded."Diaria"`,
-        ).run(funcionarioId, date, amount);
-        if (result.changes === 0) {
-          sendJson(response, 400, { error: "O funcionário selecionado não existe." });
-          return;
+
+        database.exec("BEGIN IMMEDIATE");
+        const existingDaily = database.prepare(
+          'SELECT "Diaria" FROM diarias WHERE funcionario_id = ? AND "Data" = ?',
+        ).get(funcionarioId, date) as { Diaria: number } | undefined;
+        if (existingDaily) {
+          database.prepare(
+            'UPDATE diarias SET "Diaria" = ? WHERE funcionario_id = ? AND "Data" = ?',
+          ).run(amount, funcionarioId, date);
+        } else {
+          database.prepare(
+            'INSERT INTO diarias (funcionario_id, "Data", "Diaria") VALUES (?, ?, ?)',
+          ).run(funcionarioId, date, amount);
         }
+        recordDailyHistory(
+          current.session.funcionarioId,
+          funcionarioId,
+          employee.Nome,
+          date,
+          amount,
+          existingDaily ? "update" : "insert",
+        );
+        database.exec("COMMIT");
         sendJson(response, 200, { message: "Diária salva com sucesso." });
       } catch (error) {
+        if (database.isTransaction) database.exec("ROLLBACK");
         console.error("Não foi possível salvar a diária no banco de dados.", error);
         sendJson(response, 500, { error: "Não foi possível salvar a diária." });
       }
@@ -921,6 +1000,12 @@ export function employeeApi(): Plugin {
     request: IncomingMessage,
     response: ServerResponse,
   ) => {
+    const current = getSession(request);
+    if (!current) {
+      sendJson(response, 401, { error: "Faça login para continuar." });
+      return;
+    }
+
     if (request.method !== "POST") {
       response.writeHead(405, { Allow: "POST", "Content-Type": "application/json" });
       response.end(JSON.stringify({ error: "Método não permitido." }));
@@ -944,19 +1029,75 @@ export function employeeApi(): Plugin {
       }
 
       try {
-        const result = database.prepare(
-          'DELETE FROM diarias WHERE funcionario_id = ? AND "Data" = ?',
-        ).run(funcionarioId, date);
-        if (result.changes === 0) {
+        database.exec("BEGIN IMMEDIATE");
+        const daily = database.prepare(`
+          SELECT diarias."Diaria", funcionarios.Nome
+          FROM diarias
+          JOIN funcionarios ON funcionarios.id = diarias.funcionario_id
+          WHERE diarias.funcionario_id = ? AND diarias."Data" = ?
+        `).get(funcionarioId, date) as { Diaria: number; Nome: string } | undefined;
+        if (!daily) {
+          database.exec("ROLLBACK");
           sendJson(response, 404, { error: "Não há dados para esse funcionário e essa data." });
           return;
         }
+        database.prepare(
+          'DELETE FROM diarias WHERE funcionario_id = ? AND "Data" = ?',
+        ).run(funcionarioId, date);
+        recordDailyHistory(
+          current.session.funcionarioId,
+          funcionarioId,
+          daily.Nome,
+          date,
+          daily.Diaria,
+          "delete",
+        );
+        database.exec("COMMIT");
         sendJson(response, 200, { message: "Data e diária excluídas com sucesso." });
       } catch (error) {
+        if (database.isTransaction) database.exec("ROLLBACK");
         console.error("Não foi possível excluir os dados da diária.", error);
         sendJson(response, 500, { error: "Não foi possível excluir os dados." });
       }
     });
+  };
+
+  const dailyHistoryHandler = (
+    request: IncomingMessage,
+    response: ServerResponse,
+  ) => {
+    if (request.method !== "GET") {
+      response.writeHead(405, { Allow: "GET", "Content-Type": "application/json" });
+      response.end(JSON.stringify({ error: "Método não permitido." }));
+      return;
+    }
+
+    const current = getSession(request);
+    if (!current) {
+      sendJson(response, 401, { error: "Faça login para continuar." });
+      return;
+    }
+    const employee = database.prepare(
+      "SELECT TipoConta FROM funcionarios WHERE id = ? AND Ativo = 1",
+    ).get(current.session.funcionarioId) as { TipoConta: "Funcionário" | "ADM" } | undefined;
+    if (employee?.TipoConta !== "ADM") {
+      sendJson(response, 403, { error: "Sua conta não tem acesso ao histórico de diárias." });
+      return;
+    }
+
+    try {
+      const alteracoes = database.prepare(`
+        SELECT id, usuario_id AS usuarioId, funcionario_id AS funcionarioId,
+          funcionario_nome AS funcionarioNome, data_diaria AS dataDiaria,
+          data_hora AS dataHora, diaria, tipo
+        FROM historico_diarias
+        ORDER BY data_hora DESC, id DESC
+      `).all();
+      sendJson(response, 200, { alteracoes });
+    } catch (error) {
+      console.error("Não foi possível carregar o histórico de diárias.", error);
+      sendJson(response, 500, { error: "Não foi possível carregar o histórico de diárias." });
+    }
   };
 
   const searchHandler = (
@@ -1064,6 +1205,7 @@ export function employeeApi(): Plugin {
       server.middlewares.use("/api/funcionarios/desativar", deactivateEmployeeHandler);
       server.middlewares.use("/api/funcionarios", employeesHandler);
       server.middlewares.use("/api/diarias/excluir", deleteDailyHandler);
+      server.middlewares.use("/api/diarias/historico", dailyHistoryHandler);
       server.middlewares.use("/api/diarias", dailyHandler);
       server.middlewares.use("/api/pesquisa", searchHandler);
     },
@@ -1077,6 +1219,7 @@ export function employeeApi(): Plugin {
       server.middlewares.use("/api/funcionarios/desativar", deactivateEmployeeHandler);
       server.middlewares.use("/api/funcionarios", employeesHandler);
       server.middlewares.use("/api/diarias/excluir", deleteDailyHandler);
+      server.middlewares.use("/api/diarias/historico", dailyHistoryHandler);
       server.middlewares.use("/api/diarias", dailyHandler);
       server.middlewares.use("/api/pesquisa", searchHandler);
     },

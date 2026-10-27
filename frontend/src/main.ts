@@ -52,6 +52,10 @@ const accountTypeForm = document.querySelector<HTMLFormElement>("#account-type-f
 const accountTypeEmployee = document.querySelector<HTMLSelectElement>("#account-type-employee");
 const accountTypeSelect = document.querySelector<HTMLSelectElement>("#account-type-select");
 const accountTypeMessage = document.querySelector<HTMLParagraphElement>("#account-type-message");
+const dailyHistorySection = document.querySelector<HTMLElement>("#daily-history-section");
+const dailyHistoryEmpty = document.querySelector<HTMLParagraphElement>("#daily-history-empty");
+const dailyHistoryTable = document.querySelector<HTMLDivElement>("#daily-history-table-wrapper");
+const dailyHistoryBody = document.querySelector<HTMLTableSectionElement>("#daily-history-body");
 const nameInput = document.querySelector<HTMLInputElement>("#employee-name");
 const message = document.querySelector<HTMLParagraphElement>("#form-message");
 const duplicateNameDialog = document.querySelector<HTMLDialogElement>("#duplicate-name-dialog");
@@ -79,6 +83,8 @@ const sectionMessage = document.querySelector<HTMLParagraphElement>("#section-me
 const navItems = document.querySelectorAll<HTMLAnchorElement>(".nav-item");
 let setupAvailable = false;
 let currentAccountType: AccountType | null = null;
+let currentEmployeeId: number | null = null;
+let currentEmployeeName: string | null = null;
 
 if (
   !authScreen || !app || !loginForm || !loginName || !loginPassword || !loginMessage ||
@@ -98,6 +104,7 @@ if (
   !searchResultsTable || !searchResultsBody || !dailyDate || !deleteDate ||
   !accountTypeSection || !accountTypeForm || !accountTypeEmployee ||
   !accountTypeSelect || !accountTypeMessage ||
+  !dailyHistorySection || !dailyHistoryEmpty || !dailyHistoryTable || !dailyHistoryBody ||
   !dailyAmount || !pageTitle || !pageDescription ||
   !sectionMessage || !card
 ) {
@@ -160,6 +167,10 @@ const accountTypeFormElement = accountTypeForm;
 const accountTypeEmployeeSelect = accountTypeEmployee;
 const accountTypeSelectElement = accountTypeSelect;
 const accountTypeMessageElement = accountTypeMessage;
+const dailyHistorySectionElement = dailyHistorySection;
+const dailyHistoryEmptyElement = dailyHistoryEmpty;
+const dailyHistoryTableElement = dailyHistoryTable;
+const dailyHistoryBodyElement = dailyHistoryBody;
 const dailyMessageElement = dailyMessage;
 const deleteMessageElement = deleteMessage;
 const dailyEmployeeSelect = dailyEmployee;
@@ -254,6 +265,10 @@ const sections: Record<string, { title: string; description: string }> = {
     title: "Tipo de conta",
     description: "Atribua o tipo de conta de cada funcionário cadastrado.",
   },
+  "historico-diarias": {
+    title: "Histórico de diárias",
+    description: "Consulte todas as inclusões, alterações e exclusões de diárias.",
+  },
 };
 
 const routes: Record<string, string> = {
@@ -264,6 +279,7 @@ const routes: Record<string, string> = {
   "/desativar-funcionario": "desativar",
   "/pesquisa": "pesquisa",
   "/tipo-de-conta": "tipo-conta",
+  "/historico-diarias": "historico-diarias",
 };
 
 function setTodayAsDefault(): void {
@@ -368,21 +384,23 @@ async function loadEmployees(): Promise<void> {
     }
 
     const makeOptions = () => new Option("Selecione um funcionário", "");
-    dailyEmployeeSelect.replaceChildren(makeOptions());
+    if (currentEmployeeId === null || currentEmployeeName === null) {
+      throw new Error("Não foi possível identificar o usuário conectado.");
+    }
+    dailyEmployeeSelect.replaceChildren(
+      new Option(`ID: ${currentEmployeeId} - ${currentEmployeeName}`, String(currentEmployeeId)),
+    );
     deleteEmployeeSelect.replaceChildren(makeOptions());
     const activeEmployees = result.funcionarios.filter(({ Ativo }) => Ativo === 1);
     renderEmployeeCheckboxes(activeEmployees);
     activeEmployees.forEach(({ id, Nome }) => {
       const optionLabel = `ID: ${id} - ${Nome}`;
-      dailyEmployeeSelect.add(new Option(optionLabel, String(id)));
       deleteEmployeeSelect.add(new Option(optionLabel, String(id)));
     });
-    dailyEmployeeSelect.disabled = activeEmployees.length === 0;
+    dailyEmployeeSelect.disabled = false;
     deleteEmployeeSelect.disabled = activeEmployees.length === 0;
-    dailyMessageElement.textContent = activeEmployees.length === 0
-      ? "Cadastre um funcionário antes de lançar uma diária."
-      : "";
-    dailyMessageElement.classList.toggle("form-message--visible", activeEmployees.length === 0);
+    dailyMessageElement.textContent = "";
+    dailyMessageElement.classList.remove("form-message--visible");
     deleteMessageElement.textContent = activeEmployees.length === 0
       ? "Não há funcionários cadastrados."
       : "";
@@ -575,10 +593,78 @@ async function loadAccountTypeEmployees(): Promise<void> {
   }
 }
 
+type DailyHistoryEntry = {
+  usuarioId: number;
+  funcionarioId: number;
+  funcionarioNome: string;
+  dataDiaria: string;
+  dataHora: string;
+  diaria: number;
+  tipo: "insert" | "delete" | "update";
+};
+
+async function loadDailyHistory(): Promise<void> {
+  sectionMessageElement.textContent = "Carregando histórico...";
+  sectionMessageElement.hidden = false;
+
+  try {
+    const response = await fetch("/api/diarias/historico");
+    const result = (await response.json()) as {
+      alteracoes?: DailyHistoryEntry[];
+      error?: string;
+    };
+    if (!response.ok || !result.alteracoes) {
+      throw new Error(result.error ?? "Não foi possível carregar o histórico de diárias.");
+    }
+
+    const currencyFormat = new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+    const dateFormat = new Intl.DateTimeFormat("pt-BR");
+    const dateTimeFormat = new Intl.DateTimeFormat("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "medium",
+    });
+    const rows = result.alteracoes.map((entry) => {
+      const row = document.createElement("tr");
+      const values = [
+        String(entry.usuarioId),
+        String(entry.funcionarioId),
+        entry.funcionarioNome,
+        dateFormat.format(new Date(`${entry.dataDiaria}T00:00:00`)),
+        dateTimeFormat.format(new Date(entry.dataHora)),
+        currencyFormat.format(entry.diaria),
+        entry.tipo,
+      ];
+      values.forEach((value) => {
+        const cell = document.createElement("td");
+        cell.textContent = value;
+        row.append(cell);
+      });
+      return row;
+    });
+    dailyHistoryBodyElement.replaceChildren(...rows);
+    dailyHistoryEmptyElement.hidden = result.alteracoes.length > 0;
+    dailyHistoryTableElement.hidden = result.alteracoes.length === 0;
+    sectionMessageElement.hidden = true;
+  } catch (error) {
+    console.error("Erro ao carregar o histórico de diárias.", error);
+    sectionMessageElement.textContent = formatApiError(
+      error,
+      "Não foi possível carregar o histórico de diárias.",
+    );
+    sectionMessageElement.hidden = false;
+  }
+}
+
 async function renderView(currentView: string): Promise<void> {
-  if (currentAccountType === "Funcionário" && currentView !== "diaria") {
-    currentView = "diaria";
-    window.history.replaceState(null, "", "/diaria");
+  if (
+    (currentAccountType === "Funcionário" && currentView !== "diaria") ||
+    (currentView === "historico-diarias" && currentAccountType !== "ADM")
+  ) {
+    currentView = currentAccountType === "Funcionário" ? "diaria" : "cadastro";
+    window.history.replaceState(null, "", `/${currentView}`);
   }
 
   const section = sections[currentView];
@@ -588,7 +674,9 @@ async function renderView(currentView: string): Promise<void> {
 
   navItems.forEach((item) => {
     const isCurrent = item.dataset.view === currentView;
-    item.hidden = currentAccountType === "Funcionário" && !isCurrent;
+    item.hidden =
+      (currentAccountType === "Funcionário" && !isCurrent) ||
+      (item.dataset.view === "historico-diarias" && currentAccountType !== "ADM");
     item.classList.toggle("nav-item--active", isCurrent);
     if (isCurrent) {
       item.setAttribute("aria-current", "page");
@@ -607,10 +695,14 @@ async function renderView(currentView: string): Promise<void> {
   deactivateFormElement.hidden = currentView !== "desativar";
   searchFormElement.hidden = currentView !== "pesquisa";
   accountTypeSectionElement.hidden = currentView !== "tipo-conta";
+  dailyHistorySectionElement.hidden = currentView !== "historico-diarias";
   sectionMessageElement.hidden = true;
   cardElement.classList.toggle(
     "card--wide",
-    currentView === "diaria" || currentView === "pesquisa" || currentView === "tipo-conta",
+    currentView === "diaria" ||
+      currentView === "pesquisa" ||
+      currentView === "tipo-conta" ||
+      currentView === "historico-diarias",
   );
   employeeMessageElement.classList.remove("form-message--visible");
   employeeMessageElement.textContent = "";
@@ -628,6 +720,10 @@ async function renderView(currentView: string): Promise<void> {
   accountTypeMessageElement.textContent = "";
   searchResultsElement.hidden = true;
   searchResultsBodyElement.replaceChildren();
+  dailyHistoryBodyElement.replaceChildren();
+  dailyHistoryEmptyElement.hidden = true;
+  dailyHistoryTableElement.hidden = true;
+  sectionMessageElement.hidden = true;
 
   if (currentView === "diaria" || currentView === "excluir" || currentView === "pesquisa") {
     setTodayAsDefault();
@@ -638,6 +734,8 @@ async function renderView(currentView: string): Promise<void> {
     await loadEmployeesForDeletion();
   } else if (currentView === "tipo-conta") {
     await loadAccountTypeEmployees();
+  } else if (currentView === "historico-diarias") {
+    await loadDailyHistory();
   } else {
     dailyFormElement.reset();
     deleteFormElement.reset();
@@ -650,7 +748,11 @@ async function renderView(currentView: string): Promise<void> {
 function getCurrentView(): string {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   const currentView = routes[path];
-  if (currentView && (currentAccountType !== "Funcionário" || currentView === "diaria")) {
+  if (
+    currentView &&
+    (currentAccountType !== "Funcionário" || currentView === "diaria") &&
+    (currentView !== "historico-diarias" || currentAccountType === "ADM")
+  ) {
     return currentView;
   }
 
@@ -1240,6 +1342,9 @@ type SetupEmployeesResponse = {
 function showLogin(message = ""): void {
   appElement.hidden = true;
   authScreenElement.hidden = false;
+  currentEmployeeId = null;
+  currentEmployeeName = null;
+  currentAccountType = null;
   loginFormElement.hidden = false;
   passwordFormElement.hidden = true;
   setupDetailsElement.hidden = !setupAvailable;
@@ -1383,6 +1488,8 @@ loginFormElement.addEventListener("submit", async (event: SubmitEvent) => {
       body: JSON.stringify({ login: loginNameInput.value, senha: loginPasswordInput.value }),
     });
     const result = (await response.json()) as {
+      id?: number;
+      funcionario?: string;
       precisaTrocarSenha?: boolean;
       TipoConta?: AccountType;
       error?: string;
@@ -1393,6 +1500,15 @@ loginFormElement.addEventListener("submit", async (event: SubmitEvent) => {
     if (result.TipoConta !== "Funcionário" && result.TipoConta !== "ADM") {
       throw new Error("O servidor não informou um tipo de conta válido.");
     }
+    if (
+      typeof result.id !== "number" ||
+      !Number.isSafeInteger(result.id) ||
+      typeof result.funcionario !== "string"
+    ) {
+      throw new Error("O servidor não informou o usuário conectado.");
+    }
+    currentEmployeeId = result.id;
+    currentEmployeeName = result.funcionario;
     currentAccountType = result.TipoConta;
     if (result.precisaTrocarSenha) {
       loginFormElement.hidden = true;
@@ -1496,6 +1612,8 @@ async function initializeAuthentication(): Promise<void> {
     const response = await fetch("/api/auth/session");
     if (response.ok) {
       const session = (await response.json()) as {
+        id?: number;
+        funcionario?: string;
         precisaTrocarSenha?: boolean;
         TipoConta?: AccountType;
         error?: string;
@@ -1503,6 +1621,15 @@ async function initializeAuthentication(): Promise<void> {
       if (session.TipoConta !== "Funcionário" && session.TipoConta !== "ADM") {
         throw new Error("O servidor não informou um tipo de conta válido.");
       }
+      if (
+        typeof session.id !== "number" ||
+        !Number.isSafeInteger(session.id) ||
+        typeof session.funcionario !== "string"
+      ) {
+        throw new Error("O servidor não informou o usuário conectado.");
+      }
+      currentEmployeeId = session.id;
+      currentEmployeeName = session.funcionario;
       currentAccountType = session.TipoConta;
       if (session.precisaTrocarSenha) {
         loginFormElement.hidden = true;
