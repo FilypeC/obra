@@ -10,6 +10,17 @@ const database = new DatabaseSync(
   process.env.OBRA_DATABASE_PATH ??
     fileURLToPath(new URL("./database/cadastro.db", import.meta.url)),
 );
+const normalizeEmployeeName = (name: unknown) => {
+  if (typeof name !== "string") {
+    throw new TypeError("O nome do funcionário deve ser um texto.");
+  }
+  return name.trim().normalize("NFC").toLocaleLowerCase("pt-BR");
+};
+database.function(
+  "normalize_employee_name",
+  { deterministic: true },
+  normalizeEmployeeName,
+);
 const auditLogDirectory = fileURLToPath(new URL("./logs/", import.meta.url));
 const auditLogPath = fileURLToPath(new URL("./logs/auditoria.txt", import.meta.url));
 
@@ -156,6 +167,29 @@ if (!schemaIsCurrent) {
     throw error;
   }
 }
+
+database.exec(`
+  CREATE TRIGGER IF NOT EXISTS funcionarios_nome_unico_insert
+  BEFORE INSERT ON funcionarios
+  WHEN EXISTS (
+    SELECT 1 FROM funcionarios
+    WHERE normalize_employee_name(Nome) = normalize_employee_name(NEW.Nome)
+  )
+  BEGIN
+    SELECT RAISE(ABORT, 'duplicate employee name');
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS funcionarios_nome_unico_update
+  BEFORE UPDATE OF Nome ON funcionarios
+  WHEN EXISTS (
+    SELECT 1 FROM funcionarios
+    WHERE id <> NEW.id
+      AND normalize_employee_name(Nome) = normalize_employee_name(NEW.Nome)
+  )
+  BEGIN
+    SELECT RAISE(ABORT, 'duplicate employee name');
+  END;
+`);
 
 database.exec(`
   CREATE TABLE IF NOT EXISTS historico_diarias (
@@ -698,11 +732,11 @@ export function employeeApi(): Plugin {
 
       try {
         const name = employeeName.trim();
-        const normalizedName = name.normalize("NFC").toLocaleLowerCase("pt-BR");
+        const normalizedName = normalizeEmployeeName(name);
         const duplicate = (database.prepare("SELECT Nome FROM funcionarios").all() as Array<{
           Nome: string;
         }>).find(
-          ({ Nome }) => Nome.normalize("NFC").toLocaleLowerCase("pt-BR") === normalizedName,
+          ({ Nome }) => normalizeEmployeeName(Nome) === normalizedName,
         );
         if (duplicate) {
           sendJson(response, 409, {
@@ -718,6 +752,13 @@ export function employeeApi(): Plugin {
         `).run(name, hashPassword(employeeRecord.senhaTemporaria));
         sendJson(response, 201, { Nome: name });
       } catch (error) {
+        if (error instanceof Error && error.message === "duplicate employee name") {
+          sendJson(response, 409, {
+            duplicate: true,
+            error: "Este nome de usuário já está cadastrado.",
+          });
+          return;
+        }
         console.error("Não foi possível salvar o funcionário no banco de dados.", error);
         sendJson(response, 500, { error: "Não foi possível salvar o funcionário." });
       }
