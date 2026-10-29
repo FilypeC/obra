@@ -4,13 +4,6 @@ node_modules/
 # Arquivos gerados
 dist/
 
-# Banco de dados local
-backend/database/*.db
-backend/database/*.db-journal
-backend/database/*.db-shm
-backend/database/*.db-wal
-backend/logs/*.txt
-
 # Variáveis de ambiente
 .env
 .env.*
