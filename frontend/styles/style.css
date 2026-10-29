@@ -84,15 +84,12 @@ body {
   text-decoration: none;
 }
 
-.sidebar__brand-icon {
-  display: grid;
+.sidebar__brand-logo {
+  display: block;
   width: 38px;
   height: 38px;
-  place-items: center;
-  border-radius: 11px;
-  background: #eaf0ff;
-  color: #3156c9;
-  font-size: 18px;
+  flex: 0 0 38px;
+  object-fit: contain;
 }
 
 .sidebar__nav {
@@ -179,16 +176,11 @@ body {
   width: min(100%, 760px);
 }
 
-.card__icon {
-  display: grid;
+.card__logo {
+  display: block;
   width: 44px;
   height: 44px;
-  place-items: center;
-  border-radius: 12px;
-  background: #eaf0ff;
-  color: #3156c9;
-  font-size: 20px;
-  font-weight: 700;
+  object-fit: contain;
 }
 
 .card__eyebrow {
