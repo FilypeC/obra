@@ -35,3 +35,9 @@
 [2026-10-29T19:39:01.454Z] ADM id=18 nome="patrão" acao="POST /api/auth/login" status=200 resultado=sucesso
 [2026-10-29T19:39:05.583Z] ADM id=18 nome="patrão" acao="GET /" status=200 resultado=sucesso
 [2026-10-29T19:39:18.510Z] ADM id=18 nome="patrão" acao="POST /" status=409 resultado=falha
+[2026-10-29T19:46:53.831Z] ADM id=18 nome="patrão" acao="POST /api/auth/login" status=200 resultado=sucesso
+[2026-10-29T19:46:56.784Z] ADM id=18 nome="patrão" acao="GET /" status=200 resultado=sucesso
+[2026-10-29T19:46:57.904Z] ADM id=18 nome="patrão" acao="GET /" status=200 resultado=sucesso
+[2026-10-29T19:47:06.438Z] ADM id=18 nome="patrão" acao="POST /" status=200 resultado=sucesso
+[2026-10-29T19:47:06.440Z] ADM id=18 nome="patrão" acao="GET /" status=200 resultado=sucesso
+[2026-10-29T19:47:20.288Z] ADM id=18 nome="patrão" acao="POST /" status=409 resultado=falha
