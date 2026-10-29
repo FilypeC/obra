@@ -32,9 +32,6 @@ const employeeTemporaryPassword = document.querySelector<HTMLInputElement>(
 );
 const dailyForm = document.querySelector<HTMLFormElement>("#daily-form");
 const deleteForm = document.querySelector<HTMLFormElement>("#delete-form");
-const deleteEmployeeForm = document.querySelector<HTMLFormElement>("#delete-employee-form");
-const deleteAccountEmployee = document.querySelector<HTMLSelectElement>("#delete-account-employee");
-const deleteEmployeeMessage = document.querySelector<HTMLParagraphElement>("#delete-employee-message");
 const deactivateForm = document.querySelector<HTMLFormElement>("#deactivate-form");
 const deactivateEmployee = document.querySelector<HTMLSelectElement>("#deactivate-employee");
 const deactivateMessage = document.querySelector<HTMLParagraphElement>("#deactivate-form-message");
@@ -60,12 +57,6 @@ const nameInput = document.querySelector<HTMLInputElement>("#employee-name");
 const message = document.querySelector<HTMLParagraphElement>("#form-message");
 const deactivateConfirmDialog = document.querySelector<HTMLDialogElement>("#deactivate-confirm-dialog");
 const deactivateConfirmMessage = document.querySelector<HTMLParagraphElement>("#deactivate-confirm-message");
-const deleteEmployeeConfirmDialog = document.querySelector<HTMLDialogElement>(
-  "#delete-employee-confirm-dialog",
-);
-const deleteEmployeeConfirmMessage = document.querySelector<HTMLParagraphElement>(
-  "#delete-employee-confirm-message",
-);
 const dailyMessage = document.querySelector<HTMLParagraphElement>("#daily-form-message");
 const deleteMessage = document.querySelector<HTMLParagraphElement>("#delete-form-message");
 const dailyEmployee = document.querySelector<HTMLSelectElement>("#daily-employee");
@@ -79,10 +70,9 @@ const pageTitle = document.querySelector<HTMLHeadingElement>("#page-title");
 const pageDescription = document.querySelector<HTMLParagraphElement>("#page-description");
 const sectionMessage = document.querySelector<HTMLParagraphElement>("#section-message");
 const navItems = document.querySelectorAll<HTMLAnchorElement>(".nav-item");
+const sidebarBrandLink = document.querySelector<HTMLAnchorElement>(".sidebar__brand");
 let setupAvailable = false;
 let currentAccountType: AccountType | null = null;
-let currentEmployeeId: number | null = null;
-let currentEmployeeName: string | null = null;
 
 if (
   !authScreen || !app || !loginForm || !loginName || !loginPassword || !loginMessage ||
@@ -91,12 +81,10 @@ if (
   !setupTokenMessage || !setupAccountForm || !setupEmployeeField || !setupEmployee ||
   !setupNameField || !setupName || !setupPassword || !setupAccountMessage ||
   !logoutButton || !employeeTemporaryPassword ||
-  !form || !dailyForm || !deleteForm || !deleteEmployeeForm || !deleteAccountEmployee ||
-  !deleteEmployeeMessage || !deactivateForm || !deactivateEmployee ||
+  !form || !dailyForm || !deleteForm || !deactivateForm || !deactivateEmployee ||
   !deactivateMessage || !searchForm || !generateReportButton ||
   !nameInput || !message ||
   !deactivateConfirmDialog || !deactivateConfirmMessage ||
-  !deleteEmployeeConfirmDialog || !deleteEmployeeConfirmMessage ||
   !dailyMessage || !deleteMessage || !dailyEmployee || !deleteEmployee || !searchEmployee ||
   !searchMessage || !searchStartDate || !searchEndDate || !searchResults || !searchResultsEmpty ||
   !searchResultsTable || !searchResultsBody || !dailyDate || !deleteDate ||
@@ -104,7 +92,7 @@ if (
   !accountTypeSelect || !accountTypeMessage ||
   !dailyHistorySection || !dailyHistoryEmpty || !dailyHistoryTable || !dailyHistoryBody ||
   !dailyAmount || !pageTitle || !pageDescription ||
-  !sectionMessage || !card
+  !sectionMessage || !card || !sidebarBrandLink
 ) {
   throw new Error("Não foi possível carregar os elementos do formulário.");
 }
@@ -137,9 +125,6 @@ const employeeTemporaryPasswordInput = employeeTemporaryPassword;
 
 const dailyFormElement = dailyForm;
 const deleteFormElement = deleteForm;
-const deleteEmployeeFormElement = deleteEmployeeForm;
-const deleteAccountEmployeeSelect = deleteAccountEmployee;
-const deleteEmployeeMessageElement = deleteEmployeeMessage;
 const deactivateFormElement = deactivateForm;
 const deactivateEmployeeSelect = deactivateEmployee;
 const deactivateMessageElement = deactivateMessage;
@@ -148,8 +133,6 @@ const employeeFormElement = form;
 const employeeMessageElement = message;
 const deactivateConfirmDialogElement = deactivateConfirmDialog;
 const deactivateConfirmMessageElement = deactivateConfirmMessage;
-const deleteEmployeeConfirmDialogElement = deleteEmployeeConfirmDialog;
-const deleteEmployeeConfirmMessageElement = deleteEmployeeConfirmMessage;
 const generateReportButtonElement = generateReportButton;
 const searchMessageElement = searchMessage;
 const searchStartDateInput = searchStartDate;
@@ -179,6 +162,7 @@ const cardElement = card;
 const pageTitleElement = pageTitle;
 const pageDescriptionElement = pageDescription;
 const sectionMessageElement = sectionMessage;
+const sidebarBrandLinkElement = sidebarBrandLink;
 
 function formatApiError(error: unknown, fallback: string): string {
   if (error instanceof Error) {
@@ -204,20 +188,6 @@ function confirmEmployeeDeactivation(name: string): Promise<boolean> {
   });
 }
 
-function confirmEmployeeDeletion(name: string): Promise<boolean> {
-  deleteEmployeeConfirmMessageElement.textContent =
-    `Tem certeza de que deseja deletar a conta de "${name}"? Todos os dados e diárias desse funcionário serão removidos permanentemente.`;
-
-  return new Promise((resolve) => {
-    deleteEmployeeConfirmDialogElement.addEventListener(
-      "close",
-      () => resolve(deleteEmployeeConfirmDialogElement.returnValue === "confirm"),
-      { once: true },
-    );
-    deleteEmployeeConfirmDialogElement.showModal();
-  });
-}
-
 const sections: Record<string, { title: string; description: string }> = {
   cadastro: {
     title: "Cadastro",
@@ -230,10 +200,6 @@ const sections: Record<string, { title: string; description: string }> = {
   excluir: {
     title: "Excluir dados",
     description: "Selecione o funcionário e a data para excluir a diária correspondente.",
-  },
-  "excluir-funcionario": {
-    title: "Excluir funcionário",
-    description: "Selecione a conta que deseja deletar. Essa ação remove todos os dados e diárias do funcionário.",
   },
   desativar: {
     title: "Desativar funcionário",
@@ -257,7 +223,6 @@ const routes: Record<string, string> = {
   "/cadastro": "cadastro",
   "/diaria": "diaria",
   "/excluir-dados": "excluir",
-  "/excluir-funcionario": "excluir-funcionario",
   "/desativar-funcionario": "desativar",
   "/pesquisa": "pesquisa",
   "/tipo-de-conta": "tipo-conta",
@@ -366,20 +331,18 @@ async function loadEmployees(): Promise<void> {
     }
 
     const makeOptions = () => new Option("Selecione um funcionário", "");
-    if (currentEmployeeId === null || currentEmployeeName === null) {
-      throw new Error("Não foi possível identificar o usuário conectado.");
-    }
-    dailyEmployeeSelect.replaceChildren(
-      new Option(`ID: ${currentEmployeeId} - ${currentEmployeeName}`, String(currentEmployeeId)),
-    );
-    deleteEmployeeSelect.replaceChildren(makeOptions());
     const activeEmployees = result.funcionarios.filter(({ Ativo }) => Ativo === 1);
+    dailyEmployeeSelect.replaceChildren(makeOptions());
+    activeEmployees.forEach(({ id, Nome }) => {
+      dailyEmployeeSelect.add(new Option(`ID: ${id} - ${Nome}`, String(id)));
+    });
+    deleteEmployeeSelect.replaceChildren(makeOptions());
     renderEmployeeCheckboxes(activeEmployees);
     activeEmployees.forEach(({ id, Nome }) => {
       const optionLabel = `ID: ${id} - ${Nome}`;
       deleteEmployeeSelect.add(new Option(optionLabel, String(id)));
     });
-    dailyEmployeeSelect.disabled = false;
+    dailyEmployeeSelect.disabled = activeEmployees.length === 0;
     deleteEmployeeSelect.disabled = activeEmployees.length === 0;
     dailyMessageElement.textContent = "";
     dailyMessageElement.classList.remove("form-message--visible");
@@ -446,64 +409,6 @@ async function loadEmployeesForDeactivation(): Promise<void> {
       "Não foi possível carregar os funcionários.",
     );
     deactivateMessageElement.classList.add("form-message--visible");
-  }
-}
-
-async function loadEmployeesForDeletion(): Promise<void> {
-  const submitButton = deleteEmployeeFormElement.querySelector<HTMLButtonElement>(
-    'button[type="submit"]',
-  );
-  if (!submitButton) {
-    throw new Error("Não foi possível carregar o botão para deletar funcionário.");
-  }
-  deleteAccountEmployeeSelect.replaceChildren(new Option("Carregando funcionários...", ""));
-  deleteAccountEmployeeSelect.disabled = true;
-  submitButton.disabled = true;
-  deleteEmployeeMessageElement.classList.remove("form-message--visible");
-  deleteEmployeeMessageElement.textContent = "";
-
-  try {
-    const response = await fetch("/api/funcionarios/excluir");
-    const result = (await response.json()) as {
-      funcionarios?: Array<{
-        id: number;
-        Nome: string;
-        Ativo: number;
-        TipoConta: "Funcionário" | "ADM";
-      }>;
-      error?: string;
-    };
-    if (!response.ok || !result.funcionarios) {
-      throw new Error(result.error ?? "Não foi possível carregar os funcionários.");
-    }
-
-    deleteAccountEmployeeSelect.replaceChildren(new Option(
-      result.funcionarios.length === 0 ? "Nenhuma conta cadastrada" : "Selecione uma conta",
-      "",
-    ));
-    result.funcionarios.forEach(({ id, Nome, Ativo, TipoConta }) => {
-      const status = Ativo === 1 ? "" : " (Desativado)";
-      const role = TipoConta === "ADM" ? " (ADM)" : "";
-      deleteAccountEmployeeSelect.add(
-        new Option(`ID: ${id} - ${Nome}${status}${role}`, String(id)),
-      );
-    });
-
-    const hasEmployees = result.funcionarios.length > 0;
-    deleteAccountEmployeeSelect.disabled = !hasEmployees;
-    submitButton.disabled = !hasEmployees;
-    if (!hasEmployees) {
-      deleteEmployeeMessageElement.textContent = "Não há funcionários cadastrados.";
-      deleteEmployeeMessageElement.classList.add("form-message--visible");
-    }
-  } catch (error) {
-    console.error("Erro ao carregar funcionários para exclusão.", error);
-    deleteAccountEmployeeSelect.replaceChildren(new Option("Erro ao carregar funcionários", ""));
-    deleteEmployeeMessageElement.textContent = formatApiError(
-      error,
-      "Não foi possível carregar os funcionários.",
-    );
-    deleteEmployeeMessageElement.classList.add("form-message--visible");
   }
 }
 
@@ -641,11 +546,8 @@ async function loadDailyHistory(): Promise<void> {
 }
 
 async function renderView(currentView: string): Promise<void> {
-  if (
-    (currentAccountType === "Funcionário" && currentView !== "diaria") ||
-    (currentView === "historico-diarias" && currentAccountType !== "ADM")
-  ) {
-    currentView = currentAccountType === "Funcionário" ? "diaria" : "cadastro";
+  if (currentAccountType === "Funcionário" && currentView !== "historico-diarias") {
+    currentView = "historico-diarias";
     window.history.replaceState(null, "", `/${currentView}`);
   }
 
@@ -656,9 +558,7 @@ async function renderView(currentView: string): Promise<void> {
 
   navItems.forEach((item) => {
     const isCurrent = item.dataset.view === currentView;
-    item.hidden =
-      (currentAccountType === "Funcionário" && !isCurrent) ||
-      (item.dataset.view === "historico-diarias" && currentAccountType !== "ADM");
+    item.hidden = currentAccountType === "Funcionário" && !isCurrent;
     item.classList.toggle("nav-item--active", isCurrent);
     if (isCurrent) {
       item.setAttribute("aria-current", "page");
@@ -668,12 +568,16 @@ async function renderView(currentView: string): Promise<void> {
   });
 
   pageTitleElement.textContent = section.title;
-  pageDescriptionElement.textContent = section.description;
+  pageDescriptionElement.textContent =
+    currentAccountType === "Funcionário" && currentView === "historico-diarias"
+      ? "Consulte o histórico das diárias vinculadas à sua conta."
+      : section.description;
   document.title = section.title;
+  sidebarBrandLinkElement.href =
+    currentAccountType === "Funcionário" ? "/historico-diarias" : "/cadastro";
   employeeFormElement.hidden = currentView !== "cadastro";
   dailyFormElement.hidden = currentView !== "diaria";
   deleteFormElement.hidden = currentView !== "excluir";
-  deleteEmployeeFormElement.hidden = currentView !== "excluir-funcionario";
   deactivateFormElement.hidden = currentView !== "desativar";
   searchFormElement.hidden = currentView !== "pesquisa";
   accountTypeSectionElement.hidden = currentView !== "tipo-conta";
@@ -692,8 +596,6 @@ async function renderView(currentView: string): Promise<void> {
   dailyMessageElement.textContent = "";
   deleteMessageElement.classList.remove("form-message--visible");
   deleteMessageElement.textContent = "";
-  deleteEmployeeMessageElement.classList.remove("form-message--visible");
-  deleteEmployeeMessageElement.textContent = "";
   deactivateMessageElement.classList.remove("form-message--visible");
   deactivateMessageElement.textContent = "";
   searchMessageElement.classList.remove("form-message--visible");
@@ -712,8 +614,6 @@ async function renderView(currentView: string): Promise<void> {
     await loadEmployees();
   } else if (currentView === "desativar") {
     await loadEmployeesForDeactivation();
-  } else if (currentView === "excluir-funcionario") {
-    await loadEmployeesForDeletion();
   } else if (currentView === "tipo-conta") {
     await loadAccountTypeEmployees();
   } else if (currentView === "historico-diarias") {
@@ -721,7 +621,6 @@ async function renderView(currentView: string): Promise<void> {
   } else {
     dailyFormElement.reset();
     deleteFormElement.reset();
-    deleteEmployeeFormElement.reset();
     deactivateFormElement.reset();
     searchFormElement.reset();
   }
@@ -732,13 +631,12 @@ function getCurrentView(): string {
   const currentView = routes[path];
   if (
     currentView &&
-    (currentAccountType !== "Funcionário" || currentView === "diaria") &&
-    (currentView !== "historico-diarias" || currentAccountType === "ADM")
+    (currentAccountType !== "Funcionário" || currentView === "historico-diarias")
   ) {
     return currentView;
   }
 
-  const defaultView = currentAccountType === "Funcionário" ? "diaria" : "cadastro";
+  const defaultView = currentAccountType === "Funcionário" ? "historico-diarias" : "cadastro";
   window.history.replaceState(null, "", `/${defaultView}`);
   return defaultView;
 }
@@ -867,61 +765,6 @@ deleteFormElement.addEventListener("submit", async (event: SubmitEvent) => {
     );
   } finally {
     submitButton.disabled = deactivateEmployeeSelect.disabled;
-  }
-});
-
-deleteAccountEmployeeSelect.addEventListener("change", () => {
-  deleteEmployeeMessageElement.classList.remove("form-message--visible");
-  deleteEmployeeMessageElement.textContent = "";
-});
-
-deleteEmployeeFormElement.addEventListener("submit", async (event: SubmitEvent) => {
-  event.preventDefault();
-  const funcionarioId = Number(deleteAccountEmployeeSelect.value);
-  const selectedEmployee = deleteAccountEmployeeSelect.selectedOptions[0];
-  if (!funcionarioId || !selectedEmployee) {
-    deleteAccountEmployeeSelect.reportValidity();
-    return;
-  }
-  if (!await confirmEmployeeDeletion(selectedEmployee.textContent ?? "este funcionário")) {
-    return;
-  }
-
-  const submitButton = deleteEmployeeFormElement.querySelector<HTMLButtonElement>(
-    'button[type="submit"]',
-  );
-  if (!submitButton) {
-    throw new Error("Não foi possível carregar o botão para deletar funcionário.");
-  }
-
-  submitButton.disabled = true;
-  deleteEmployeeMessageElement.textContent = "Deletando funcionário...";
-  deleteEmployeeMessageElement.classList.add("form-message--visible");
-  try {
-    const response = await fetch("/api/funcionarios/excluir", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ funcionarioId }),
-    });
-    const result = (await response.json()) as { error?: string; message?: string };
-    if (!response.ok) {
-      throw new Error(result.error ?? "Não foi possível deletar o funcionário.");
-    }
-
-    await loadEmployeesForDeletion();
-    deleteAccountEmployeeSelect.value = "";
-    deleteEmployeeMessageElement.textContent =
-      result.message ?? "Funcionário e todos os seus dados foram deletados.";
-    deleteEmployeeMessageElement.classList.add("form-message--visible");
-  } catch (error) {
-    console.error("Erro ao deletar funcionário.", error);
-    deleteEmployeeMessageElement.textContent = formatApiError(
-      error,
-      "Não foi possível deletar o funcionário.",
-    );
-    deleteEmployeeMessageElement.classList.add("form-message--visible");
-  } finally {
-    submitButton.disabled = deleteAccountEmployeeSelect.disabled;
   }
 });
 
@@ -1301,8 +1144,6 @@ type SetupEmployeesResponse = {
 function showLogin(message = ""): void {
   appElement.hidden = true;
   authScreenElement.hidden = false;
-  currentEmployeeId = null;
-  currentEmployeeName = null;
   currentAccountType = null;
   loginFormElement.hidden = false;
   passwordFormElement.hidden = true;
@@ -1466,8 +1307,6 @@ loginFormElement.addEventListener("submit", async (event: SubmitEvent) => {
     ) {
       throw new Error("O servidor não informou o usuário conectado.");
     }
-    currentEmployeeId = result.id;
-    currentEmployeeName = result.funcionario;
     currentAccountType = result.TipoConta;
     if (result.precisaTrocarSenha) {
       loginFormElement.hidden = true;
@@ -1587,8 +1426,6 @@ async function initializeAuthentication(): Promise<void> {
       ) {
         throw new Error("O servidor não informou o usuário conectado.");
       }
-      currentEmployeeId = session.id;
-      currentEmployeeName = session.funcionario;
       currentAccountType = session.TipoConta;
       if (session.precisaTrocarSenha) {
         loginFormElement.hidden = true;

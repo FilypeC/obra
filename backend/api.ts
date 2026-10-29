@@ -674,10 +674,9 @@ export function employeeApi(): Plugin {
       return;
     }
     const path = request.url?.split("?")[0] ?? "";
-    const isDailyAccess =
-      path === "/api/diarias" ||
-      (path === "/api/funcionarios" && request.method === "GET");
-    if (employee.TipoConta === "Funcionário" && !isDailyAccess) {
+    const isDailyHistoryAccess =
+      path === "/api/diarias/historico" && request.method === "GET";
+    if (employee.TipoConta === "Funcionário" && !isDailyHistoryAccess) {
       sendJson(response, 403, { error: "Sua conta não tem acesso a esta funcionalidade." });
       return;
     }
@@ -823,7 +822,7 @@ export function employeeApi(): Plugin {
     if (request.method === "GET") {
       try {
         const funcionarios = database.prepare(
-          "SELECT id, Nome, Ativo, TipoConta FROM funcionarios ORDER BY Nome COLLATE NOCASE",
+          "SELECT id, Nome, Ativo, TipoConta FROM funcionarios WHERE TipoConta <> 'ADM' ORDER BY Nome COLLATE NOCASE",
         ).all();
         sendJson(response, 200, { funcionarios });
       } catch (error) {
@@ -864,11 +863,16 @@ export function employeeApi(): Plugin {
       try {
         database.exec("BEGIN IMMEDIATE");
         const employee = database.prepare(
-          "SELECT id, Nome FROM funcionarios WHERE id = ?",
-        ).get(funcionarioId) as { id: number; Nome: string } | undefined;
+          "SELECT id, Nome, TipoConta FROM funcionarios WHERE id = ?",
+        ).get(funcionarioId) as { id: number; Nome: string; TipoConta: "Funcionário" | "ADM" } | undefined;
         if (!employee) {
           database.exec("ROLLBACK");
           sendJson(response, 404, { error: "Funcionário não encontrado." });
+          return;
+        }
+        if (employee.TipoConta === "ADM") {
+          database.exec("ROLLBACK");
+          sendJson(response, 400, { error: "Contas ADM não podem ser excluídas por esta funcionalidade." });
           return;
         }
 
@@ -991,17 +995,12 @@ export function employeeApi(): Plugin {
         });
         return;
       }
-      if (funcionarioId !== current.session.funcionarioId) {
-        sendJson(response, 403, { error: "Só é permitido lançar diária para a sua própria conta." });
-        return;
-      }
-
       try {
         const employee = database.prepare(
-          "SELECT id, Nome FROM funcionarios WHERE id = ? AND Ativo = 1",
+          "SELECT id, Nome FROM funcionarios WHERE id = ? AND Ativo = 1 AND TipoConta <> 'ADM'",
         ).get(funcionarioId) as { id: number; Nome: string } | undefined;
         if (!employee) {
-          sendJson(response, 400, { error: "O funcionário selecionado não está ativo." });
+          sendJson(response, 400, { error: "Selecione um funcionário ativo que não seja ADM." });
           return;
         }
 
@@ -1075,6 +1074,7 @@ export function employeeApi(): Plugin {
           FROM diarias
           JOIN funcionarios ON funcionarios.id = diarias.funcionario_id
           WHERE diarias.funcionario_id = ? AND diarias."Data" = ?
+            AND funcionarios.TipoConta <> 'ADM'
         `).get(funcionarioId, date) as { Diaria: number; Nome: string } | undefined;
         if (!daily) {
           database.exec("ROLLBACK");
@@ -1120,8 +1120,10 @@ export function employeeApi(): Plugin {
     const employee = database.prepare(
       "SELECT TipoConta FROM funcionarios WHERE id = ? AND Ativo = 1",
     ).get(current.session.funcionarioId) as { TipoConta: "Funcionário" | "ADM" } | undefined;
-    if (employee?.TipoConta !== "ADM") {
-      sendJson(response, 403, { error: "Sua conta não tem acesso ao histórico de diárias." });
+    if (!employee) {
+      sessions.delete(current.token);
+      clearSessionCookie(request, response);
+      sendJson(response, 401, { error: "Funcionário não encontrado ou desativado." });
       return;
     }
 
@@ -1131,8 +1133,9 @@ export function employeeApi(): Plugin {
           funcionario_nome AS funcionarioNome, data_diaria AS dataDiaria,
           data_hora AS dataHora, diaria, tipo
         FROM historico_diarias
+        WHERE (? = 'ADM' OR funcionario_id = ?)
         ORDER BY data_hora DESC, id DESC
-      `).all();
+      `).all(employee.TipoConta, current.session.funcionarioId);
       sendJson(response, 200, { alteracoes });
     } catch (error) {
       console.error("Não foi possível carregar o histórico de diárias.", error);
@@ -1191,6 +1194,14 @@ export function employeeApi(): Plugin {
 
       try {
         const placeholders = funcionarioIds.map(() => "?").join(", ");
+        const eligibleEmployees = database.prepare(`
+          SELECT id FROM funcionarios
+          WHERE id IN (${placeholders}) AND Ativo = 1 AND TipoConta <> 'ADM'
+        `).all(...funcionarioIds) as Array<{ id: number }>;
+        if (eligibleEmployees.length !== funcionarioIds.length) {
+          sendJson(response, 400, { error: "Selecione apenas funcionários ativos que não sejam ADM." });
+          return;
+        }
         const registros = hasDateRange
           ? database.prepare(`
           SELECT funcionarios.Nome, diarias."Data", diarias."Diaria"
@@ -1198,6 +1209,7 @@ export function employeeApi(): Plugin {
           JOIN funcionarios ON funcionarios.id = diarias.funcionario_id
           WHERE funcionarios.id IN (${placeholders})
             AND funcionarios.Ativo = 1
+            AND funcionarios.TipoConta <> 'ADM'
             AND diarias."Data" BETWEEN ? AND ?
           ORDER BY funcionarios.Nome COLLATE NOCASE, diarias."Data"
         `).all(...funcionarioIds, startDate, endDate)
@@ -1209,6 +1221,7 @@ export function employeeApi(): Plugin {
             AND diarias."Data" <= ?
           WHERE funcionarios.id IN (${placeholders})
             AND funcionarios.Ativo = 1
+            AND funcionarios.TipoConta <> 'ADM'
           ORDER BY funcionarios.Nome COLLATE NOCASE, diarias."Data"
         `).all(today, ...funcionarioIds);
         sendJson(response, 200, { registros });

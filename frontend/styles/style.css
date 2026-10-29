@@ -33,7 +33,7 @@ body {
 }
 
 .auth-card {
-  width: min(100%, 440px);
+  width: min(100%, 560px);
 }
 
 .setup-details {
@@ -61,7 +61,7 @@ body {
 .app {
   display: grid;
   min-height: 100vh;
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-columns: minmax(210px, 250px) minmax(0, 1fr);
 }
 
 .sidebar {
@@ -158,14 +158,16 @@ body {
 
 .page {
   display: grid;
+  min-width: 0;
   min-height: 100vh;
-  place-items: center;
+  place-items: start center;
   padding: 32px 20px 16px;
 }
 
 .card {
-  width: min(100%, 440px);
-  padding: 40px;
+  width: min(100%, 560px);
+  min-width: 0;
+  padding: 48px;
   border: 1px solid #e7ebf2;
   border-radius: 16px;
   background: #fff;
@@ -173,7 +175,7 @@ body {
 }
 
 .card--wide {
-  width: min(100%, 760px);
+  width: min(100%, 920px);
 }
 
 .card__logo {
@@ -220,6 +222,7 @@ label {
 
 input {
   width: 100%;
+  min-width: 0;
   min-height: 48px;
   padding: 0 14px;
   border: 1px solid #d8deea;
@@ -232,6 +235,7 @@ input {
 
 select {
   width: 100%;
+  min-width: 0;
   min-height: 48px;
   padding: 0 14px;
   border: 1px solid #d8deea;
@@ -368,11 +372,15 @@ select:focus {
 }
 
 .search-results__table-wrapper {
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .results-table {
   width: 100%;
+  min-width: 480px;
   border-collapse: collapse;
   font-size: 14px;
   text-align: left;
@@ -516,28 +524,51 @@ dialog p {
   line-height: 1.6;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 900px) {
   .app {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
   }
 
   .sidebar {
+    display: grid;
     min-height: auto;
-    padding: 16px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0 12px;
+    padding: 12px 16px 0;
     border-right: 0;
     border-bottom: 1px solid #e7ebf2;
   }
 
+  .sidebar__brand {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
   .sidebar__nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
     display: flex;
-    gap: 4px;
-    margin-top: 16px;
+    gap: 6px;
+    min-width: 0;
+    margin-top: 10px;
     overflow-x: auto;
+    padding: 0 2px 10px;
+    scrollbar-width: thin;
   }
 
   .nav-item {
     flex: 0 0 auto;
+    min-height: 42px;
+    white-space: nowrap;
+  }
+
+  #logout-button {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    margin: 0;
   }
 
   .sidebar__footer {
@@ -573,6 +604,17 @@ dialog p {
     padding: 0 9px;
     font-size: 13px;
   }
+
+  .sidebar {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .sidebar__brand {
+    gap: 8px;
+    padding: 0 4px;
+    font-size: 13px;
+  }
 }
 
 .section-message[hidden] {
@@ -585,6 +627,27 @@ dialog p {
 
 @media (max-width: 480px) {
   .card {
-    padding: 30px 24px;
+    padding: 28px 20px;
   }
+
+  .page {
+    padding: 20px 12px;
+  }
+
+  .auth-screen {
+    padding: 16px 12px;
+  }
+
+  .duplicate-name-dialog__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .duplicate-name-dialog__actions button {
+    width: 100%;
+  }
+}
+
+#daily-history-section .results-table {
+  min-width: 860px;
 }
