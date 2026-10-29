@@ -676,7 +676,6 @@ export function employeeApi(): Plugin {
     readBody(request, response, (body) => {
       const employeeRecord = body as {
         Nome?: unknown;
-        allowDuplicate?: unknown;
         senhaTemporaria?: unknown;
       } | null;
       const employeeName = employeeRecord?.Nome;
@@ -705,10 +704,10 @@ export function employeeApi(): Plugin {
         }>).find(
           ({ Nome }) => Nome.normalize("NFC").toLocaleLowerCase("pt-BR") === normalizedName,
         );
-        if (duplicate && employeeRecord?.allowDuplicate !== true) {
+        if (duplicate) {
           sendJson(response, 409, {
             duplicate: true,
-            error: `O funcionário "${duplicate.Nome}" já existe.`,
+            error: `O usuário "${duplicate.Nome}" já existe.`,
           });
           return;
         }

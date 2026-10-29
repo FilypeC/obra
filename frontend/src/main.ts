@@ -58,8 +58,6 @@ const dailyHistoryTable = document.querySelector<HTMLDivElement>("#daily-history
 const dailyHistoryBody = document.querySelector<HTMLTableSectionElement>("#daily-history-body");
 const nameInput = document.querySelector<HTMLInputElement>("#employee-name");
 const message = document.querySelector<HTMLParagraphElement>("#form-message");
-const duplicateNameDialog = document.querySelector<HTMLDialogElement>("#duplicate-name-dialog");
-const duplicateNameMessage = document.querySelector<HTMLParagraphElement>("#duplicate-name-message");
 const deactivateConfirmDialog = document.querySelector<HTMLDialogElement>("#deactivate-confirm-dialog");
 const deactivateConfirmMessage = document.querySelector<HTMLParagraphElement>("#deactivate-confirm-message");
 const deleteEmployeeConfirmDialog = document.querySelector<HTMLDialogElement>(
@@ -96,7 +94,7 @@ if (
   !form || !dailyForm || !deleteForm || !deleteEmployeeForm || !deleteAccountEmployee ||
   !deleteEmployeeMessage || !deactivateForm || !deactivateEmployee ||
   !deactivateMessage || !searchForm || !generateReportButton ||
-  !nameInput || !message || !duplicateNameDialog || !duplicateNameMessage ||
+  !nameInput || !message ||
   !deactivateConfirmDialog || !deactivateConfirmMessage ||
   !deleteEmployeeConfirmDialog || !deleteEmployeeConfirmMessage ||
   !dailyMessage || !deleteMessage || !dailyEmployee || !deleteEmployee || !searchEmployee ||
@@ -148,8 +146,6 @@ const deactivateMessageElement = deactivateMessage;
 const searchFormElement = searchForm;
 const employeeFormElement = form;
 const employeeMessageElement = message;
-const duplicateNameDialogElement = duplicateNameDialog;
-const duplicateNameMessageElement = duplicateNameMessage;
 const deactivateConfirmDialogElement = deactivateConfirmDialog;
 const deactivateConfirmMessageElement = deactivateConfirmMessage;
 const deleteEmployeeConfirmDialogElement = deleteEmployeeConfirmDialog;
@@ -192,20 +188,6 @@ function formatApiError(error: unknown, fallback: string): string {
     return error.message;
   }
   return fallback;
-}
-
-function confirmDuplicateEmployee(name: string): Promise<boolean> {
-  duplicateNameMessageElement.textContent =
-    `O funcionário "${name}" já existe no banco de dados. Deseja cadastrá-lo mesmo assim?`;
-
-  return new Promise((resolve) => {
-    duplicateNameDialogElement.addEventListener(
-      "close",
-      () => resolve(duplicateNameDialogElement.returnValue === "confirm"),
-      { once: true },
-    );
-    duplicateNameDialogElement.showModal();
-  });
 }
 
 function confirmEmployeeDeactivation(name: string): Promise<boolean> {
@@ -1136,7 +1118,7 @@ form.addEventListener("submit", async (event: SubmitEvent) => {
   message.classList.add("form-message--visible");
 
   try {
-    let response = await fetch("/api/funcionarios", {
+    const response = await fetch("/api/funcionarios", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1148,30 +1130,7 @@ form.addEventListener("submit", async (event: SubmitEvent) => {
     let result = (await response.json()) as {
       Nome?: string;
       error?: string;
-      duplicate?: boolean;
     };
-
-    if (response.status === 409 && result.duplicate) {
-      if (!await confirmDuplicateEmployee(employeeName)) {
-        message.textContent = "Cadastro cancelado.";
-        return;
-      }
-
-      response = await fetch("/api/funcionarios", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          Nome: employeeName,
-          allowDuplicate: true,
-          senhaTemporaria: employeeTemporaryPasswordInput.value,
-        }),
-      });
-      result = (await response.json()) as {
-        Nome?: string;
-        error?: string;
-        duplicate?: boolean;
-      };
-    }
 
     if (!response.ok) {
       throw new Error(result.error ?? "Não foi possível salvar o funcionário.");
