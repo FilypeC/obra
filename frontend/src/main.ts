@@ -382,7 +382,7 @@ function renderEmployeeCheckboxes(
       checkbox.disabled = true;
     }
     const name = document.createElement("span");
-    name.textContent = `ID: ${id} - ${Nome}`;
+    name.textContent = currentAccountType === "Funcionário" ? Nome : `ID: ${id} - ${Nome}`;
     label.append(checkbox, name);
     return label;
   }));
@@ -412,7 +412,7 @@ function syncSelectAllEmployeesCheckbox(): void {
 
 function updateEmployeeSelectionLabel(): void {
   if (currentAccountType === "Funcionário") {
-    searchEmployeeSelectionElement.textContent = "Seu usuário";
+    searchEmployeeSelectionElement.textContent = currentEmployeeName ?? "Seu usuário";
     return;
   }
   const selectedCount = getSelectedEmployeeIds().length;
