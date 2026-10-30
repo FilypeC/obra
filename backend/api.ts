@@ -1275,6 +1275,27 @@ export function employeeApi(): Plugin {
       return;
     }
 
+    const query = new URL(request.url ?? "/", "http://localhost").searchParams;
+    const startDate = query.get("dataInicial") ?? "";
+    const endDate = query.get("dataFinal") ?? "";
+    const hasDateRange = startDate !== "" || endDate !== "";
+    const today = getTodayLocalDate();
+    if (
+      hasDateRange &&
+      (!startDate ||
+        !endDate ||
+        !isValidDate(startDate) ||
+        !isValidDate(endDate) ||
+        startDate > today ||
+        endDate > today ||
+        startDate > endDate)
+    ) {
+      sendJson(response, 400, {
+        error: "Informe um período válido, com as duas datas até hoje e a data inicial não posterior à data final.",
+      });
+      return;
+    }
+
     const current = getSession(request);
     if (!current) {
       sendJson(response, 401, { error: "Faça login para continuar." });
@@ -1299,8 +1320,15 @@ export function employeeApi(): Plugin {
           diaria_anterior AS diariaAnterior, tipo
         FROM diarias_auditoria
         WHERE (? = 'ADM' OR funcionario_id = ?)
+          AND (? = 0 OR data_diaria BETWEEN ? AND ?)
         ORDER BY data_hora DESC, id DESC
-      `).all(employee.TipoConta, current.session.funcionarioId);
+      `).all(
+        employee.TipoConta,
+        current.session.funcionarioId,
+        hasDateRange ? 1 : 0,
+        startDate,
+        endDate,
+      );
       sendJson(response, 200, { alteracoes });
     } catch (error) {
       console.error("Não foi possível carregar o histórico de diárias.", error);

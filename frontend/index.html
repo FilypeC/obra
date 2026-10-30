@@ -318,15 +318,26 @@
             </div>
           </section>
           <section id="daily-history-section" class="search-results" aria-live="polite" hidden>
+            <form id="daily-history-search-form" class="search-fields">
+              <div class="date-range">
+                <div class="field">
+                  <label for="daily-history-start-date">De</label>
+                  <input id="daily-history-start-date" name="dataInicial" type="date" />
+                </div>
+                <div class="field">
+                  <label for="daily-history-end-date">Até</label>
+                  <input id="daily-history-end-date" name="dataFinal" type="date" />
+                </div>
+              </div>
+              <div class="daily-history__actions">
+                <button type="submit">Pesquisar</button>
+                <button id="generate-daily-history-report" type="button" disabled>
+                  Gerar relatório
+                </button>
+              </div>
+            </form>
             <div class="daily-history__header">
               <h2 class="search-results__title">Alterações nas diárias</h2>
-              <button
-                id="generate-daily-history-report"
-                type="button"
-                disabled
-              >
-                Gerar relatório
-              </button>
             </div>
             <p id="daily-history-empty" class="search-results__empty" hidden>
               Nenhuma alteração de diária foi registrada.

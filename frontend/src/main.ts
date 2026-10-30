@@ -80,6 +80,15 @@ const dailyHistoryBody = document.querySelector<HTMLTableSectionElement>("#daily
 const generateDailyHistoryReportButton = document.querySelector<HTMLButtonElement>(
   "#generate-daily-history-report",
 );
+const dailyHistorySearchForm = document.querySelector<HTMLFormElement>(
+  "#daily-history-search-form",
+);
+const dailyHistoryStartDate = document.querySelector<HTMLInputElement>(
+  "#daily-history-start-date",
+);
+const dailyHistoryEndDate = document.querySelector<HTMLInputElement>(
+  "#daily-history-end-date",
+);
 const nameInput = document.querySelector<HTMLInputElement>("#employee-name");
 const message = document.querySelector<HTMLParagraphElement>("#form-message");
 const deactivateConfirmDialog = document.querySelector<HTMLDialogElement>("#deactivate-confirm-dialog");
@@ -124,7 +133,8 @@ if (
   !accountTypeSection || !accountTypeForm || !accountTypeEmployee ||
   !accountTypeSelect || !accountTypeMessage ||
   !dailyHistorySection || !dailyHistoryEmpty || !dailyHistoryTable || !dailyHistoryBody ||
-  !generateDailyHistoryReportButton ||
+  !generateDailyHistoryReportButton || !dailyHistorySearchForm || !dailyHistoryStartDate ||
+  !dailyHistoryEndDate ||
   !dailyAmount || !pageTitle || !pageDescription ||
   !sectionMessage || !card || !sidebarBrandLink
 ) {
@@ -197,6 +207,9 @@ const dailyHistoryEmptyElement = dailyHistoryEmpty;
 const dailyHistoryTableElement = dailyHistoryTable;
 const dailyHistoryBodyElement = dailyHistoryBody;
 const generateDailyHistoryReportButtonElement = generateDailyHistoryReportButton;
+const dailyHistorySearchFormElement = dailyHistorySearchForm;
+const dailyHistoryStartDateInput = dailyHistoryStartDate;
+const dailyHistoryEndDateInput = dailyHistoryEndDate;
 const dailyMessageElement = dailyMessage;
 const deleteMessageElement = deleteMessage;
 const dailyEmployeeSelect = dailyEmployee;
@@ -303,6 +316,8 @@ function updateDateLimits(): void {
   deleteDateInput.max = today;
   searchStartDateInput.max = today;
   searchEndDateInput.max = today;
+  dailyHistoryStartDateInput.max = today;
+  dailyHistoryEndDateInput.max = today;
 }
 
 function getSelectedEmployeeIds(): number[] {
@@ -382,7 +397,7 @@ function renderEmployeeCheckboxes(
       checkbox.disabled = true;
     }
     const name = document.createElement("span");
-    name.textContent = currentAccountType === "Funcionário" ? Nome : `ID: ${id} - ${Nome}`;
+    name.textContent = Nome;
     label.append(checkbox, name);
     return label;
   }));
@@ -444,13 +459,12 @@ async function loadEmployees(): Promise<void> {
     const activeEmployees = result.funcionarios.filter(({ Ativo }) => Ativo === 1);
     dailyEmployeeSelect.replaceChildren(makeOptions());
     activeEmployees.forEach(({ id, Nome }) => {
-      dailyEmployeeSelect.add(new Option(`ID: ${id} - ${Nome}`, String(id)));
+      dailyEmployeeSelect.add(new Option(Nome, String(id)));
     });
     deleteEmployeeSelect.replaceChildren(makeOptions());
     renderEmployeeCheckboxes(activeEmployees);
     activeEmployees.forEach(({ id, Nome }) => {
-      const optionLabel = `ID: ${id} - ${Nome}`;
-      deleteEmployeeSelect.add(new Option(optionLabel, String(id)));
+      deleteEmployeeSelect.add(new Option(Nome, String(id)));
     });
     dailyEmployeeSelect.disabled = activeEmployees.length === 0;
     deleteEmployeeSelect.disabled = activeEmployees.length === 0;
@@ -513,7 +527,7 @@ async function loadEmployeesForDeactivation(): Promise<void> {
     deactivateEmployeeSelect.replaceChildren(new Option("Selecione um funcionário", ""));
     result.funcionarios.forEach(({ id, Nome, Ativo }) => {
       const status = Ativo === 1 ? "" : " (Desativado)";
-      const option = new Option(`ID: ${id} - ${Nome}${status}`, String(id));
+      const option = new Option(`${Nome}${status}`, String(id));
       option.dataset.active = String(Ativo === 1);
       deactivateEmployeeSelect.add(option);
     });
@@ -566,7 +580,7 @@ function renderAccountTypeEmployees(employees: AccountTypeEmployee[]): void {
   ));
   employees.forEach(({ id, Nome, Ativo, TipoConta }) => {
     const status = Ativo === 1 ? "" : " (Desativado)";
-    const option = new Option(`ID: ${id} - ${Nome}${status}`, String(id));
+    const option = new Option(`${Nome}${status}`, String(id));
     option.disabled = Ativo !== 1;
     option.dataset.tipoConta = TipoConta;
     accountTypeEmployeeSelect.add(option);
@@ -661,13 +675,39 @@ function formatDailyHistoryEntry(entry: DailyHistoryEntry): string[] {
 }
 
 async function loadDailyHistory(): Promise<void> {
+  const dataInicial = dailyHistoryStartDateInput.value;
+  const dataFinal = dailyHistoryEndDateInput.value;
   dailyHistoryEntries = [];
   generateDailyHistoryReportButtonElement.disabled = true;
+  dailyHistoryBodyElement.replaceChildren();
+  dailyHistoryEmptyElement.hidden = true;
+  dailyHistoryTableElement.hidden = true;
+  if (!isValidSearchDateRange(dataInicial, dataFinal)) {
+    sectionMessageElement.textContent =
+      "Informe as duas datas do período, até hoje, com a data inicial não posterior à data final.";
+    sectionMessageElement.hidden = false;
+    return;
+  }
+
+  const searchButton = dailyHistorySearchFormElement.querySelector<HTMLButtonElement>(
+    'button[type="submit"]',
+  );
+  if (!searchButton) {
+    throw new Error("Não foi possível carregar o botão de pesquisa do histórico.");
+  }
+  searchButton.disabled = true;
   sectionMessageElement.textContent = "Carregando histórico...";
   sectionMessageElement.hidden = false;
 
   try {
-    const response = await fetch("/api/diarias/historico");
+    const query = new URLSearchParams();
+    if (dataInicial && dataFinal) {
+      query.set("dataInicial", dataInicial);
+      query.set("dataFinal", dataFinal);
+    }
+    const response = await fetch(
+      `/api/diarias/historico${query.size > 0 ? `?${query.toString()}` : ""}`,
+    );
     const result = (await response.json()) as {
       alteracoes?: DailyHistoryEntry[];
       error?: string;
@@ -698,8 +738,16 @@ async function loadDailyHistory(): Promise<void> {
       "Não foi possível carregar o histórico de diárias.",
     );
     sectionMessageElement.hidden = false;
+  } finally {
+    searchButton.disabled = false;
   }
 }
+
+dailyHistorySearchFormElement.addEventListener("submit", (event: SubmitEvent) => {
+  event.preventDefault();
+  updateDateLimits();
+  void loadDailyHistory();
+});
 
 async function renderView(currentView: string): Promise<void> {
   if (
@@ -1489,7 +1537,7 @@ async function loadSetupEmployees(): Promise<void> {
   setupNameInput.required = firstAccess;
   setupEmployeeSelect.replaceChildren(new Option("Selecione um funcionário", ""));
   result.funcionarios.forEach(({ id, Nome }) => {
-    setupEmployeeSelect.add(new Option(`ID: ${id} - ${Nome}`, String(id)));
+    setupEmployeeSelect.add(new Option(Nome, String(id)));
   });
   setupAccountFormElement.hidden = false;
   setupAccountMessageElement.textContent = firstAccess

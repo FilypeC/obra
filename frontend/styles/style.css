@@ -452,19 +452,23 @@ select:focus {
 }
 
 .daily-history__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
   margin-bottom: 14px;
+  text-align: center;
 }
 
 .daily-history__header .search-results__title {
   margin: 0;
 }
 
-.daily-history__header button {
-  flex: 0 0 auto;
+.daily-history__actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.daily-history__actions button {
+  width: fit-content;
+  min-width: 180px;
   margin: 0;
   padding: 0 18px;
 }
@@ -787,9 +791,8 @@ dialog p {
     width: 100%;
   }
 
-  .daily-history__header {
-    align-items: stretch;
-    flex-direction: column;
+  .daily-history__actions {
+    flex-wrap: wrap;
   }
 
   .employee-status-actions {
