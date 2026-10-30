@@ -364,7 +364,7 @@ updateDateLimits();
 document.addEventListener("focusin", updateDateLimits);
 
 function renderEmployeeCheckboxes(
-  employees: Array<{ id: number; Nome: string }>,
+  employees: Array<{ id: number; Nome: string; Ativo: number }>,
 ): void {
   const visibleEmployees = currentAccountType === "Funcionário"
     ? employees.filter(({ id }) => id === currentEmployeeId)
@@ -384,7 +384,7 @@ function renderEmployeeCheckboxes(
     label.append(checkbox, name);
     options.push(label);
   }
-  options.push(...visibleEmployees.map(({ id, Nome }) => {
+  options.push(...visibleEmployees.map(({ id, Nome, Ativo }) => {
     const label = document.createElement("label");
     label.className = "employee-checkbox";
     const checkbox = document.createElement("input");
@@ -397,7 +397,7 @@ function renderEmployeeCheckboxes(
       checkbox.disabled = true;
     }
     const name = document.createElement("span");
-    name.textContent = Nome;
+    name.textContent = `${Nome}${Ativo === 1 ? "" : " (Desativado)"}`;
     label.append(checkbox, name);
     return label;
   }));
@@ -462,7 +462,7 @@ async function loadEmployees(): Promise<void> {
       dailyEmployeeSelect.add(new Option(Nome, String(id)));
     });
     deleteEmployeeSelect.replaceChildren(makeOptions());
-    renderEmployeeCheckboxes(activeEmployees);
+    renderEmployeeCheckboxes(result.funcionarios);
     activeEmployees.forEach(({ id, Nome }) => {
       deleteEmployeeSelect.add(new Option(Nome, String(id)));
     });

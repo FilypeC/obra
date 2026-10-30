@@ -837,7 +837,7 @@ export function employeeApi(): Plugin {
           `).all(current.session.funcionarioId)
           : database.prepare(`
             SELECT id, Nome, Ativo FROM funcionarios
-            WHERE Ativo = 1 AND TipoConta <> 'ADM'
+            WHERE TipoConta <> 'ADM'
             ORDER BY Nome COLLATE NOCASE
           `).all();
         sendJson(response, 200, { funcionarios });
@@ -1409,10 +1409,10 @@ export function employeeApi(): Plugin {
         const placeholders = funcionarioIds.map(() => "?").join(", ");
         const eligibleEmployees = database.prepare(`
           SELECT id FROM funcionarios
-          WHERE id IN (${placeholders}) AND Ativo = 1 AND TipoConta <> 'ADM'
+          WHERE id IN (${placeholders}) AND TipoConta <> 'ADM'
         `).all(...funcionarioIds) as Array<{ id: number }>;
         if (eligibleEmployees.length !== funcionarioIds.length) {
-          sendJson(response, 400, { error: "Selecione apenas funcionários ativos que não sejam ADM." });
+          sendJson(response, 400, { error: "Selecione apenas funcionários cadastrados que não sejam ADM." });
           return;
         }
         const registros = hasDateRange
@@ -1421,7 +1421,6 @@ export function employeeApi(): Plugin {
           FROM diarias
           JOIN funcionarios ON funcionarios.id = diarias.funcionario_id
           WHERE funcionarios.id IN (${placeholders})
-            AND funcionarios.Ativo = 1
             AND funcionarios.TipoConta <> 'ADM'
             AND diarias."Data" BETWEEN ? AND ?
           ORDER BY funcionarios.Nome COLLATE NOCASE, diarias."Data"
@@ -1433,7 +1432,6 @@ export function employeeApi(): Plugin {
             ON diarias.funcionario_id = funcionarios.id
             AND diarias."Data" <= ?
           WHERE funcionarios.id IN (${placeholders})
-            AND funcionarios.Ativo = 1
             AND funcionarios.TipoConta <> 'ADM'
           ORDER BY funcionarios.Nome COLLATE NOCASE, diarias."Data"
         `).all(today, ...funcionarioIds);
