@@ -27,6 +27,8 @@ const setupName = document.querySelector<HTMLInputElement>("#setup-name");
 const setupPassword = document.querySelector<HTMLInputElement>("#setup-password");
 const setupAccountMessage = document.querySelector<HTMLParagraphElement>("#setup-account-message");
 const logoutButton = document.querySelector<HTMLButtonElement>("#logout-button");
+const sidebarUserName = document.querySelector<HTMLElement>("#sidebar-user-name");
+const sidebarUserType = document.querySelector<HTMLElement>("#sidebar-user-type");
 const employeeTemporaryPassword = document.querySelector<HTMLInputElement>(
   "#employee-temporary-password",
 );
@@ -40,6 +42,12 @@ const generateReportButton = document.querySelector<HTMLButtonElement>("#generat
 const searchMessage = document.querySelector<HTMLParagraphElement>("#search-form-message");
 const searchStartDate = document.querySelector<HTMLInputElement>("#search-start-date");
 const searchEndDate = document.querySelector<HTMLInputElement>("#search-end-date");
+const searchEmployeeDropdown = document.querySelector<HTMLDetailsElement>(
+  "#search-employee-dropdown",
+);
+const searchEmployeeSelection = document.querySelector<HTMLElement>(
+  "#search-employee-selection",
+);
 const searchResults = document.querySelector<HTMLElement>("#search-results");
 const searchResultsEmpty = document.querySelector<HTMLParagraphElement>("#search-results-empty");
 const searchResultsTable = document.querySelector<HTMLDivElement>("#search-results-table-wrapper");
@@ -73,6 +81,7 @@ const navItems = document.querySelectorAll<HTMLAnchorElement>(".nav-item");
 const sidebarBrandLink = document.querySelector<HTMLAnchorElement>(".sidebar__brand");
 let setupAvailable = false;
 let currentAccountType: AccountType | null = null;
+let currentEmployeeName: string | null = null;
 
 if (
   !authScreen || !app || !loginForm || !loginName || !loginPassword || !loginMessage ||
@@ -80,12 +89,13 @@ if (
   !passwordMessage || !setupDetails || !setupTokenForm || !setupToken ||
   !setupTokenMessage || !setupAccountForm || !setupEmployeeField || !setupEmployee ||
   !setupNameField || !setupName || !setupPassword || !setupAccountMessage ||
-  !logoutButton || !employeeTemporaryPassword ||
+  !logoutButton || !sidebarUserName || !sidebarUserType || !employeeTemporaryPassword ||
   !form || !dailyForm || !deleteForm || !deactivateForm || !deactivateEmployee ||
   !deactivateMessage || !searchForm || !generateReportButton ||
   !nameInput || !message ||
   !deactivateConfirmDialog || !deactivateConfirmMessage ||
   !dailyMessage || !deleteMessage || !dailyEmployee || !deleteEmployee || !searchEmployee ||
+  !searchEmployeeDropdown || !searchEmployeeSelection ||
   !searchMessage || !searchStartDate || !searchEndDate || !searchResults || !searchResultsEmpty ||
   !searchResultsTable || !searchResultsBody || !dailyDate || !deleteDate ||
   !accountTypeSection || !accountTypeForm || !accountTypeEmployee ||
@@ -121,6 +131,8 @@ const setupNameInput = setupName;
 const setupPasswordInput = setupPassword;
 const setupAccountMessageElement = setupAccountMessage;
 const logoutButtonElement = logoutButton;
+const sidebarUserNameElement = sidebarUserName;
+const sidebarUserTypeElement = sidebarUserType;
 const employeeTemporaryPasswordInput = employeeTemporaryPassword;
 
 const dailyFormElement = dailyForm;
@@ -137,6 +149,8 @@ const generateReportButtonElement = generateReportButton;
 const searchMessageElement = searchMessage;
 const searchStartDateInput = searchStartDate;
 const searchEndDateInput = searchEndDate;
+const searchEmployeeDropdownElement = searchEmployeeDropdown;
+const searchEmployeeSelectionElement = searchEmployeeSelection;
 const searchResultsElement = searchResults;
 const searchResultsEmptyElement = searchResultsEmpty;
 const searchResultsTableElement = searchResultsTable;
@@ -163,6 +177,12 @@ const pageTitleElement = pageTitle;
 const pageDescriptionElement = pageDescription;
 const sectionMessageElement = sectionMessage;
 const sidebarBrandLinkElement = sidebarBrandLink;
+
+function updateSidebarUser(): void {
+  sidebarUserNameElement.textContent = currentEmployeeName ?? "";
+  sidebarUserTypeElement.textContent = currentAccountType ?? "";
+  sidebarUserTypeElement.hidden = currentAccountType === null;
+}
 
 function formatApiError(error: unknown, fallback: string): string {
   if (error instanceof Error) {
@@ -310,13 +330,22 @@ function renderEmployeeCheckboxes(
   if (employees.length === 0) {
     searchEmployeeList.textContent = "Nenhum funcionário cadastrado.";
   }
+  updateEmployeeSelectionLabel();
+}
+
+function updateEmployeeSelectionLabel(): void {
+  const selectedCount = getSelectedEmployeeIds().length;
+  searchEmployeeSelectionElement.textContent = selectedCount === 0
+    ? "Selecione um ou mais funcionários"
+    : `${selectedCount} funcionário${selectedCount === 1 ? "" : "s"} selecionado${selectedCount === 1 ? "" : "s"}`;
 }
 
 async function loadEmployees(): Promise<void> {
   const loadingOption = () => new Option("Carregando funcionários...", "");
   dailyEmployeeSelect.replaceChildren(loadingOption());
   deleteEmployeeSelect.replaceChildren(loadingOption());
-  searchEmployeeList.textContent = "Carregando funcionários...";
+  searchEmployeeSelectionElement.textContent = "Carregando funcionários...";
+  searchEmployeeDropdownElement.open = false;
   dailyEmployeeSelect.disabled = true;
   deleteEmployeeSelect.disabled = true;
 
@@ -354,7 +383,8 @@ async function loadEmployees(): Promise<void> {
     console.error("Erro ao carregar funcionários.", error);
     dailyEmployeeSelect.replaceChildren(new Option("Erro ao carregar funcionários", ""));
     deleteEmployeeSelect.replaceChildren(new Option("Erro ao carregar funcionários", ""));
-    searchEmployeeList.textContent = "Erro ao carregar funcionários.";
+    searchEmployeeSelectionElement.textContent = "Erro ao carregar funcionários.";
+    searchEmployeeList.textContent = "";
     dailyMessageElement.textContent = formatApiError(
       error,
       "Não foi possível carregar os funcionários.",
@@ -364,6 +394,8 @@ async function loadEmployees(): Promise<void> {
     deleteMessageElement.classList.add("form-message--visible");
   }
 }
+
+searchEmployeeList.addEventListener("change", updateEmployeeSelectionLabel);
 
 async function loadEmployeesForDeactivation(): Promise<void> {
   deactivateEmployeeSelect.replaceChildren(new Option("Carregando funcionários...", ""));
@@ -1145,6 +1177,8 @@ function showLogin(message = ""): void {
   appElement.hidden = true;
   authScreenElement.hidden = false;
   currentAccountType = null;
+  currentEmployeeName = null;
+  updateSidebarUser();
   loginFormElement.hidden = false;
   passwordFormElement.hidden = true;
   setupDetailsElement.hidden = !setupAvailable;
@@ -1308,6 +1342,8 @@ loginFormElement.addEventListener("submit", async (event: SubmitEvent) => {
       throw new Error("O servidor não informou o usuário conectado.");
     }
     currentAccountType = result.TipoConta;
+    currentEmployeeName = result.funcionario;
+    updateSidebarUser();
     if (result.precisaTrocarSenha) {
       loginFormElement.hidden = true;
       passwordFormElement.hidden = false;
@@ -1427,6 +1463,8 @@ async function initializeAuthentication(): Promise<void> {
         throw new Error("O servidor não informou o usuário conectado.");
       }
       currentAccountType = session.TipoConta;
+      currentEmployeeName = session.funcionario;
+      updateSidebarUser();
       if (session.precisaTrocarSenha) {
         loginFormElement.hidden = true;
         passwordFormElement.hidden = false;

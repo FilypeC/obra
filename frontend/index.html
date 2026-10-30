@@ -69,6 +69,11 @@
           <img class="sidebar__brand-logo" src="/decade.png" alt="" />
           <span>Gestão de equipe</span>
         </a>
+        <div class="sidebar__user" aria-label="Usuário conectado">
+          <span class="sidebar__user-label">Conectado como</span>
+          <strong id="sidebar-user-name" class="sidebar__user-name"></strong>
+          <span id="sidebar-user-type" class="sidebar__user-type"></span>
+        </div>
         <nav class="sidebar__nav" aria-label="Menu principal">
           <a class="nav-item" href="/cadastro" data-view="cadastro">
             <span class="nav-item__icon" aria-hidden="true">+</span>
@@ -191,15 +196,18 @@
             <div class="search-fields__filters">
               <div class="field">
                 <span id="search-employee-label" class="field__label">Funcionários</span>
-                <div
-                  id="search-employee"
-                  class="employee-checkbox-list"
-                  role="group"
-                  aria-labelledby="search-employee-label"
-                  aria-describedby="search-employee-help"
-                >Carregando funcionários...</div>
+                <details id="search-employee-dropdown" class="employee-multiselect">
+                  <summary id="search-employee-selection">Carregando funcionários...</summary>
+                  <div
+                    id="search-employee"
+                    class="employee-checkbox-list"
+                    role="group"
+                    aria-labelledby="search-employee-label"
+                    aria-describedby="search-employee-help"
+                  ></div>
+                </details>
                 <small id="search-employee-help" class="field-help">
-                  Marque um ou mais funcionários para pesquisar.
+                  Selecione um ou mais funcionários para pesquisar.
                 </small>
               </div>
               <div class="field">
