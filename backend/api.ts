@@ -10,6 +10,10 @@ const database = new DatabaseSync(
   process.env.OBRA_DATABASE_PATH ??
     fileURLToPath(new URL("./database/cadastro.db", import.meta.url)),
 );
+let dailyAuditUser: { id: number; name: string } | null = null;
+database.function("daily_audit_user_id", () => dailyAuditUser?.id ?? null);
+database.function("daily_audit_user_name", () => dailyAuditUser?.name ?? null);
+
 const normalizeEmployeeName = (name: unknown) => {
   if (typeof name !== "string") {
     throw new TypeError("O nome do funcionário deve ser um texto.");
@@ -191,40 +195,143 @@ database.exec(`
   END;
 `);
 
+const hasLegacyDailyHistoryTable = database.prepare(
+  "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'historico_diarias'",
+).get();
+const hasDailyAuditTable = database.prepare(
+  "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'diarias_auditoria'",
+).get();
+if (hasLegacyDailyHistoryTable && !hasDailyAuditTable) {
+  database.exec("ALTER TABLE historico_diarias RENAME TO diarias_auditoria");
+}
+
 database.exec(`
-  CREATE TABLE IF NOT EXISTS historico_diarias (
+  CREATE TABLE IF NOT EXISTS diarias_auditoria (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     usuario_id INTEGER NOT NULL,
+    usuario_nome TEXT NOT NULL DEFAULT '',
     funcionario_id INTEGER NOT NULL,
     funcionario_nome TEXT NOT NULL,
     data_diaria TEXT NOT NULL CHECK (length(data_diaria) = 10),
     data_hora TEXT NOT NULL,
     diaria REAL NOT NULL CHECK (diaria > 0),
+    diaria_anterior REAL,
     tipo TEXT NOT NULL CHECK (tipo IN ('insert', 'delete', 'update'))
   );
 `);
 
-function recordDailyHistory(
-  usuarioId: number,
-  funcionarioId: number,
-  funcionarioNome: string,
-  date: string,
-  amount: number,
-  type: "insert" | "delete" | "update",
-): void {
-  database.prepare(`
-    INSERT INTO historico_diarias (
-      usuario_id, funcionario_id, funcionario_nome, data_diaria, data_hora, diaria, tipo
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    usuarioId,
-    funcionarioId,
-    funcionarioNome,
-    date,
-    new Date().toISOString(),
-    amount,
-    type,
-  );
+const dailyHistoryColumns = database.prepare("PRAGMA table_info(diarias_auditoria)")
+  .all() as Array<{ name: string }>;
+if (!dailyHistoryColumns.some(({ name }) => name === "usuario_nome")) {
+  database.exec("ALTER TABLE diarias_auditoria ADD COLUMN usuario_nome TEXT NOT NULL DEFAULT ''");
+}
+if (!dailyHistoryColumns.some(({ name }) => name === "diaria_anterior")) {
+  database.exec("ALTER TABLE diarias_auditoria ADD COLUMN diaria_anterior REAL");
+}
+database.exec(`
+  UPDATE diarias_auditoria
+  SET usuario_nome = COALESCE(
+    (SELECT Nome FROM funcionarios WHERE funcionarios.id = diarias_auditoria.usuario_id),
+    'Usuário #' || usuario_id
+  )
+  WHERE usuario_nome = '';
+`);
+
+database.exec(`
+  DROP TRIGGER IF EXISTS historico_diarias_after_insert;
+  DROP TRIGGER IF EXISTS historico_diarias_after_update;
+  DROP TRIGGER IF EXISTS historico_diarias_after_delete;
+  DROP TRIGGER IF EXISTS diarias_auditoria_after_insert;
+  DROP TRIGGER IF EXISTS diarias_auditoria_after_update;
+  DROP TRIGGER IF EXISTS diarias_auditoria_after_delete;
+
+  CREATE TRIGGER diarias_auditoria_after_insert
+  AFTER INSERT ON diarias
+  BEGIN
+    INSERT INTO diarias_auditoria (
+      usuario_id, usuario_nome, funcionario_id, funcionario_nome, data_diaria,
+      data_hora, diaria, diaria_anterior, tipo
+    )
+    VALUES (
+      daily_audit_user_id(),
+      daily_audit_user_name(),
+      NEW.funcionario_id,
+      COALESCE(
+        (SELECT Nome FROM funcionarios WHERE id = NEW.funcionario_id),
+        'Funcionário removido #' || NEW.funcionario_id
+      ),
+      NEW.Data,
+      strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+      NEW.Diaria,
+      NULL,
+      'insert'
+    );
+  END;
+
+  CREATE TRIGGER diarias_auditoria_after_update
+  AFTER UPDATE ON diarias
+  WHEN OLD.funcionario_id IS NOT NEW.funcionario_id
+    OR OLD.Data IS NOT NEW.Data
+    OR OLD.Diaria IS NOT NEW.Diaria
+  BEGIN
+    INSERT INTO diarias_auditoria (
+      usuario_id, usuario_nome, funcionario_id, funcionario_nome, data_diaria,
+      data_hora, diaria, diaria_anterior, tipo
+    )
+    VALUES (
+      daily_audit_user_id(),
+      daily_audit_user_name(),
+      NEW.funcionario_id,
+      COALESCE(
+        (SELECT Nome FROM funcionarios WHERE id = NEW.funcionario_id),
+        'Funcionário removido #' || NEW.funcionario_id
+      ),
+      NEW.Data,
+      strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+      NEW.Diaria,
+      OLD.Diaria,
+      'update'
+    );
+  END;
+
+  CREATE TRIGGER diarias_auditoria_after_delete
+  AFTER DELETE ON diarias
+  BEGIN
+    INSERT INTO diarias_auditoria (
+      usuario_id, usuario_nome, funcionario_id, funcionario_nome, data_diaria,
+      data_hora, diaria, diaria_anterior, tipo
+    )
+    VALUES (
+      daily_audit_user_id(),
+      daily_audit_user_name(),
+      OLD.funcionario_id,
+      COALESCE(
+        (SELECT Nome FROM funcionarios WHERE id = OLD.funcionario_id),
+        'Funcionário removido #' || OLD.funcionario_id
+      ),
+      OLD.Data,
+      strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+      OLD.Diaria,
+      OLD.Diaria,
+      'delete'
+    );
+  END;
+`);
+
+function withDailyAuditUser<T>(usuarioId: number, operation: () => T): T {
+  const user = database.prepare(
+    "SELECT Nome FROM funcionarios WHERE id = ?",
+  ).get(usuarioId) as { Nome: string } | undefined;
+  if (!user) {
+    throw new Error("Não foi possível identificar o usuário que modificou a diária.");
+  }
+
+  dailyAuditUser = { id: usuarioId, name: user.Nome };
+  try {
+    return operation();
+  } finally {
+    dailyAuditUser = null;
+  }
 }
 
 function readBody(
@@ -876,20 +983,9 @@ export function employeeApi(): Plugin {
           return;
         }
 
-        const dailyRecords = database.prepare(
-          'SELECT "Data", "Diaria" FROM diarias WHERE funcionario_id = ?',
-        ).all(funcionarioId) as Array<{ Data: string; Diaria: number }>;
-        for (const daily of dailyRecords) {
-          recordDailyHistory(
-            current.session.funcionarioId,
-            funcionarioId,
-            employee.Nome,
-            daily.Data,
-            daily.Diaria,
-            "delete",
-          );
-        }
-        database.prepare("DELETE FROM diarias WHERE funcionario_id = ?").run(funcionarioId);
+        withDailyAuditUser(current.session.funcionarioId, () => {
+          database.prepare("DELETE FROM diarias WHERE funcionario_id = ?").run(funcionarioId);
+        });
         database.prepare("DELETE FROM funcionarios WHERE id = ?").run(funcionarioId);
         database.exec("COMMIT");
 
@@ -1008,23 +1104,17 @@ export function employeeApi(): Plugin {
         const existingDaily = database.prepare(
           'SELECT "Diaria" FROM diarias WHERE funcionario_id = ? AND "Data" = ?',
         ).get(funcionarioId, date) as { Diaria: number } | undefined;
-        if (existingDaily) {
-          database.prepare(
-            'UPDATE diarias SET "Diaria" = ? WHERE funcionario_id = ? AND "Data" = ?',
-          ).run(amount, funcionarioId, date);
-        } else {
-          database.prepare(
-            'INSERT INTO diarias (funcionario_id, "Data", "Diaria") VALUES (?, ?, ?)',
-          ).run(funcionarioId, date, amount);
-        }
-        recordDailyHistory(
-          current.session.funcionarioId,
-          funcionarioId,
-          employee.Nome,
-          date,
-          amount,
-          existingDaily ? "update" : "insert",
-        );
+        withDailyAuditUser(current.session.funcionarioId, () => {
+          if (existingDaily) {
+            database.prepare(
+              'UPDATE diarias SET "Diaria" = ? WHERE funcionario_id = ? AND "Data" = ?',
+            ).run(amount, funcionarioId, date);
+          } else {
+            database.prepare(
+              'INSERT INTO diarias (funcionario_id, "Data", "Diaria") VALUES (?, ?, ?)',
+            ).run(funcionarioId, date, amount);
+          }
+        });
         database.exec("COMMIT");
         sendJson(response, 200, { message: "Diária salva com sucesso." });
       } catch (error) {
@@ -1081,17 +1171,11 @@ export function employeeApi(): Plugin {
           sendJson(response, 404, { error: "Não há dados para esse funcionário e essa data." });
           return;
         }
-        database.prepare(
-          'DELETE FROM diarias WHERE funcionario_id = ? AND "Data" = ?',
-        ).run(funcionarioId, date);
-        recordDailyHistory(
-          current.session.funcionarioId,
-          funcionarioId,
-          daily.Nome,
-          date,
-          daily.Diaria,
-          "delete",
-        );
+        withDailyAuditUser(current.session.funcionarioId, () => {
+          database.prepare(
+            'DELETE FROM diarias WHERE funcionario_id = ? AND "Data" = ?',
+          ).run(funcionarioId, date);
+        });
         database.exec("COMMIT");
         sendJson(response, 200, { message: "Data e diária excluídas com sucesso." });
       } catch (error) {
@@ -1129,10 +1213,12 @@ export function employeeApi(): Plugin {
 
     try {
       const alteracoes = database.prepare(`
-        SELECT id, usuario_id AS usuarioId, funcionario_id AS funcionarioId,
-          funcionario_nome AS funcionarioNome, data_diaria AS dataDiaria,
-          data_hora AS dataHora, diaria, tipo
-        FROM historico_diarias
+        SELECT id, usuario_id AS usuarioId,
+          COALESCE(NULLIF(usuario_nome, ''), 'Usuário #' || usuario_id) AS usuarioNome,
+          funcionario_id AS funcionarioId, funcionario_nome AS funcionarioNome,
+          data_diaria AS dataDiaria, data_hora AS dataHora, diaria,
+          diaria_anterior AS diariaAnterior, tipo
+        FROM diarias_auditoria
         WHERE (? = 'ADM' OR funcionario_id = ?)
         ORDER BY data_hora DESC, id DESC
       `).all(employee.TipoConta, current.session.funcionarioId);

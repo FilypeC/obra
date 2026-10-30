@@ -235,7 +235,7 @@ const sections: Record<string, { title: string; description: string }> = {
   },
   "historico-diarias": {
     title: "Histórico de diárias",
-    description: "Consulte todas as inclusões, alterações e exclusões de diárias.",
+    description: "Confira quem modificou cada diária, quando a alteração ocorreu, os valores envolvidos e o tipo de operação.",
   },
 };
 
@@ -514,11 +514,13 @@ async function loadAccountTypeEmployees(): Promise<void> {
 
 type DailyHistoryEntry = {
   usuarioId: number;
+  usuarioNome: string;
   funcionarioId: number;
   funcionarioNome: string;
   dataDiaria: string;
   dataHora: string;
   diaria: number;
+  diariaAnterior: number | null;
   tipo: "insert" | "delete" | "update";
 };
 
@@ -548,13 +550,18 @@ async function loadDailyHistory(): Promise<void> {
     const rows = result.alteracoes.map((entry) => {
       const row = document.createElement("tr");
       const values = [
-        String(entry.usuarioId),
+        `${entry.usuarioNome} (ID ${entry.usuarioId})`,
         String(entry.funcionarioId),
         entry.funcionarioNome,
         dateFormat.format(new Date(`${entry.dataDiaria}T00:00:00`)),
         dateTimeFormat.format(new Date(entry.dataHora)),
-        currencyFormat.format(entry.diaria),
-        entry.tipo,
+        entry.diariaAnterior === null ? "—" : currencyFormat.format(entry.diariaAnterior),
+        entry.tipo === "delete" ? "Excluída" : currencyFormat.format(entry.diaria),
+        entry.tipo === "insert"
+          ? "Inclusão"
+          : entry.tipo === "update"
+            ? "Alteração"
+            : "Exclusão",
       ];
       values.forEach((value) => {
         const cell = document.createElement("td");
