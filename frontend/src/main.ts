@@ -36,8 +36,23 @@ const dailyForm = document.querySelector<HTMLFormElement>("#daily-form");
 const deleteForm = document.querySelector<HTMLFormElement>("#delete-form");
 const deactivateForm = document.querySelector<HTMLFormElement>("#deactivate-form");
 const deactivateEmployee = document.querySelector<HTMLSelectElement>("#deactivate-employee");
+const deactivateEmployeeButton = document.querySelector<HTMLButtonElement>(
+  "#deactivate-employee-button",
+);
+const reactivateEmployeeButton = document.querySelector<HTMLButtonElement>(
+  "#reactivate-employee-button",
+);
 const deactivateMessage = document.querySelector<HTMLParagraphElement>("#deactivate-form-message");
 const searchForm = document.querySelector<HTMLFormElement>("#search-form");
+const changePasswordForm = document.querySelector<HTMLFormElement>("#change-password-form");
+const currentPasswordInput = document.querySelector<HTMLInputElement>("#current-password");
+const changeNewPasswordInput = document.querySelector<HTMLInputElement>("#change-new-password");
+const changeConfirmPasswordInput = document.querySelector<HTMLInputElement>(
+  "#change-confirm-password",
+);
+const changePasswordMessage = document.querySelector<HTMLParagraphElement>(
+  "#change-password-message",
+);
 const generateReportButton = document.querySelector<HTMLButtonElement>("#generate-report");
 const searchMessage = document.querySelector<HTMLParagraphElement>("#search-form-message");
 const searchStartDate = document.querySelector<HTMLInputElement>("#search-start-date");
@@ -48,6 +63,7 @@ const searchEmployeeDropdown = document.querySelector<HTMLDetailsElement>(
 const searchEmployeeSelection = document.querySelector<HTMLElement>(
   "#search-employee-selection",
 );
+const searchEmployeeHelp = document.querySelector<HTMLElement>("#search-employee-help");
 const searchResults = document.querySelector<HTMLElement>("#search-results");
 const searchResultsEmpty = document.querySelector<HTMLParagraphElement>("#search-results-empty");
 const searchResultsTable = document.querySelector<HTMLDivElement>("#search-results-table-wrapper");
@@ -61,6 +77,9 @@ const dailyHistorySection = document.querySelector<HTMLElement>("#daily-history-
 const dailyHistoryEmpty = document.querySelector<HTMLParagraphElement>("#daily-history-empty");
 const dailyHistoryTable = document.querySelector<HTMLDivElement>("#daily-history-table-wrapper");
 const dailyHistoryBody = document.querySelector<HTMLTableSectionElement>("#daily-history-body");
+const generateDailyHistoryReportButton = document.querySelector<HTMLButtonElement>(
+  "#generate-daily-history-report",
+);
 const nameInput = document.querySelector<HTMLInputElement>("#employee-name");
 const message = document.querySelector<HTMLParagraphElement>("#form-message");
 const deactivateConfirmDialog = document.querySelector<HTMLDialogElement>("#deactivate-confirm-dialog");
@@ -81,6 +100,7 @@ const navItems = document.querySelectorAll<HTMLAnchorElement>(".nav-item");
 const sidebarBrandLink = document.querySelector<HTMLAnchorElement>(".sidebar__brand");
 let setupAvailable = false;
 let currentAccountType: AccountType | null = null;
+let currentEmployeeId: number | null = null;
 let currentEmployeeName: string | null = null;
 
 if (
@@ -91,16 +111,20 @@ if (
   !setupNameField || !setupName || !setupPassword || !setupAccountMessage ||
   !logoutButton || !sidebarUserName || !sidebarUserType || !employeeTemporaryPassword ||
   !form || !dailyForm || !deleteForm || !deactivateForm || !deactivateEmployee ||
-  !deactivateMessage || !searchForm || !generateReportButton ||
+  !deactivateEmployeeButton || !reactivateEmployeeButton || !deactivateMessage ||
+  !searchForm || !generateReportButton ||
+  !changePasswordForm || !currentPasswordInput || !changeNewPasswordInput ||
+  !changeConfirmPasswordInput || !changePasswordMessage ||
   !nameInput || !message ||
   !deactivateConfirmDialog || !deactivateConfirmMessage ||
   !dailyMessage || !deleteMessage || !dailyEmployee || !deleteEmployee || !searchEmployee ||
-  !searchEmployeeDropdown || !searchEmployeeSelection ||
+  !searchEmployeeDropdown || !searchEmployeeSelection || !searchEmployeeHelp ||
   !searchMessage || !searchStartDate || !searchEndDate || !searchResults || !searchResultsEmpty ||
   !searchResultsTable || !searchResultsBody || !dailyDate || !deleteDate ||
   !accountTypeSection || !accountTypeForm || !accountTypeEmployee ||
   !accountTypeSelect || !accountTypeMessage ||
   !dailyHistorySection || !dailyHistoryEmpty || !dailyHistoryTable || !dailyHistoryBody ||
+  !generateDailyHistoryReportButton ||
   !dailyAmount || !pageTitle || !pageDescription ||
   !sectionMessage || !card || !sidebarBrandLink
 ) {
@@ -139,8 +163,15 @@ const dailyFormElement = dailyForm;
 const deleteFormElement = deleteForm;
 const deactivateFormElement = deactivateForm;
 const deactivateEmployeeSelect = deactivateEmployee;
+const deactivateEmployeeButtonElement = deactivateEmployeeButton;
+const reactivateEmployeeButtonElement = reactivateEmployeeButton;
 const deactivateMessageElement = deactivateMessage;
 const searchFormElement = searchForm;
+const changePasswordFormElement = changePasswordForm;
+const currentPasswordInputElement = currentPasswordInput;
+const changeNewPasswordInputElement = changeNewPasswordInput;
+const changeConfirmPasswordInputElement = changeConfirmPasswordInput;
+const changePasswordMessageElement = changePasswordMessage;
 const employeeFormElement = form;
 const employeeMessageElement = message;
 const deactivateConfirmDialogElement = deactivateConfirmDialog;
@@ -151,6 +182,7 @@ const searchStartDateInput = searchStartDate;
 const searchEndDateInput = searchEndDate;
 const searchEmployeeDropdownElement = searchEmployeeDropdown;
 const searchEmployeeSelectionElement = searchEmployeeSelection;
+const searchEmployeeHelpElement = searchEmployeeHelp;
 const searchResultsElement = searchResults;
 const searchResultsEmptyElement = searchResultsEmpty;
 const searchResultsTableElement = searchResultsTable;
@@ -164,6 +196,7 @@ const dailyHistorySectionElement = dailyHistorySection;
 const dailyHistoryEmptyElement = dailyHistoryEmpty;
 const dailyHistoryTableElement = dailyHistoryTable;
 const dailyHistoryBodyElement = dailyHistoryBody;
+const generateDailyHistoryReportButtonElement = generateDailyHistoryReportButton;
 const dailyMessageElement = dailyMessage;
 const deleteMessageElement = deleteMessage;
 const dailyEmployeeSelect = dailyEmployee;
@@ -222,12 +255,16 @@ const sections: Record<string, { title: string; description: string }> = {
     description: "Selecione o funcionário e a data para excluir a diária correspondente.",
   },
   desativar: {
-    title: "Desativar funcionário",
-    description: "Selecione o funcionário que deseja desativar.",
+    title: "Desativar e reativar funcionários",
+    description: "Selecione o funcionário que deseja desativar ou reativar.",
   },
   pesquisa: {
     title: "Pesquisa",
     description: "Selecione um ou mais funcionários e o período que deseja consultar.",
+  },
+  "alterar-senha": {
+    title: "Alterar senha",
+    description: "Altere a senha da sua conta.",
   },
   "tipo-conta": {
     title: "Tipo de conta",
@@ -245,6 +282,7 @@ const routes: Record<string, string> = {
   "/excluir-dados": "excluir",
   "/desativar-funcionario": "desativar",
   "/pesquisa": "pesquisa",
+  "/alterar-senha": "alterar-senha",
   "/tipo-de-conta": "tipo-conta",
   "/historico-diarias": "historico-diarias",
 };
@@ -313,7 +351,25 @@ document.addEventListener("focusin", updateDateLimits);
 function renderEmployeeCheckboxes(
   employees: Array<{ id: number; Nome: string }>,
 ): void {
-  const options = employees.map(({ id, Nome }) => {
+  const visibleEmployees = currentAccountType === "Funcionário"
+    ? employees.filter(({ id }) => id === currentEmployeeId)
+    : employees;
+  if (currentAccountType === "Funcionário" && visibleEmployees.length !== 1) {
+    throw new Error("Não foi possível carregar o usuário conectado para a pesquisa.");
+  }
+  const options: HTMLElement[] = [];
+  if (currentAccountType !== "Funcionário" && visibleEmployees.length > 0) {
+    const label = document.createElement("label");
+    label.className = "employee-checkbox";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.dataset.selectAllEmployees = "true";
+    const name = document.createElement("span");
+    name.textContent = "Selecionar todos";
+    label.append(checkbox, name);
+    options.push(label);
+  }
+  options.push(...visibleEmployees.map(({ id, Nome }) => {
     const label = document.createElement("label");
     label.className = "employee-checkbox";
     const checkbox = document.createElement("input");
@@ -321,19 +377,44 @@ function renderEmployeeCheckboxes(
     checkbox.name = "funcionarioIds";
     checkbox.value = String(id);
     checkbox.dataset.employeeName = Nome;
+    if (currentAccountType === "Funcionário") {
+      checkbox.checked = true;
+      checkbox.disabled = true;
+    }
     const name = document.createElement("span");
     name.textContent = `ID: ${id} - ${Nome}`;
     label.append(checkbox, name);
     return label;
-  });
+  }));
   searchEmployeeList.replaceChildren(...options);
-  if (employees.length === 0) {
+  if (visibleEmployees.length === 0) {
     searchEmployeeList.textContent = "Nenhum funcionário cadastrado.";
   }
+  syncSelectAllEmployeesCheckbox();
   updateEmployeeSelectionLabel();
 }
 
+function syncSelectAllEmployeesCheckbox(): void {
+  const selectAll = searchEmployeeList.querySelector<HTMLInputElement>(
+    'input[data-select-all-employees="true"]',
+  );
+  if (!selectAll) return;
+
+  const employees = Array.from(
+    searchEmployeeList.querySelectorAll<HTMLInputElement>(
+      'input[name="funcionarioIds"]',
+    ),
+  );
+  const selectedCount = employees.filter(({ checked }) => checked).length;
+  selectAll.checked = employees.length > 0 && selectedCount === employees.length;
+  selectAll.indeterminate = selectedCount > 0 && selectedCount < employees.length;
+}
+
 function updateEmployeeSelectionLabel(): void {
+  if (currentAccountType === "Funcionário") {
+    searchEmployeeSelectionElement.textContent = "Seu usuário";
+    return;
+  }
   const selectedCount = getSelectedEmployeeIds().length;
   searchEmployeeSelectionElement.textContent = selectedCount === 0
     ? "Selecione um ou mais funcionários"
@@ -395,18 +476,29 @@ async function loadEmployees(): Promise<void> {
   }
 }
 
-searchEmployeeList.addEventListener("change", updateEmployeeSelectionLabel);
+searchEmployeeList.addEventListener("change", (event: Event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+
+  if (target.dataset.selectAllEmployees === "true") {
+    searchEmployeeList.querySelectorAll<HTMLInputElement>(
+      'input[name="funcionarioIds"]',
+    ).forEach((checkbox) => {
+      checkbox.checked = target.checked;
+    });
+  } else if (target.name !== "funcionarioIds") {
+    return;
+  }
+
+  syncSelectAllEmployeesCheckbox();
+  updateEmployeeSelectionLabel();
+});
 
 async function loadEmployeesForDeactivation(): Promise<void> {
   deactivateEmployeeSelect.replaceChildren(new Option("Carregando funcionários...", ""));
   deactivateEmployeeSelect.disabled = true;
-  const submitButton = deactivateFormElement.querySelector<HTMLButtonElement>(
-    'button[type="submit"]',
-  );
-  if (!submitButton) {
-    throw new Error("Não foi possível carregar o botão de desativação.");
-  }
-  submitButton.disabled = true;
+  deactivateEmployeeButtonElement.disabled = true;
+  reactivateEmployeeButtonElement.disabled = true;
 
   try {
     const response = await fetch("/api/funcionarios/desativar");
@@ -422,26 +514,42 @@ async function loadEmployeesForDeactivation(): Promise<void> {
     result.funcionarios.forEach(({ id, Nome, Ativo }) => {
       const status = Ativo === 1 ? "" : " (Desativado)";
       const option = new Option(`ID: ${id} - ${Nome}${status}`, String(id));
-      option.disabled = Ativo !== 1;
+      option.dataset.active = String(Ativo === 1);
       deactivateEmployeeSelect.add(option);
     });
 
     const hasActiveEmployees = result.funcionarios.some(({ Ativo }) => Ativo === 1);
-    deactivateEmployeeSelect.disabled = !hasActiveEmployees;
-    deactivateMessageElement.textContent = hasActiveEmployees
-      ? ""
-      : "Não há funcionários ativos para desativar.";
-    deactivateMessageElement.classList.toggle("form-message--visible", !hasActiveEmployees);
-    submitButton.disabled = !hasActiveEmployees;
+    const hasInactiveEmployees = result.funcionarios.some(({ Ativo }) => Ativo !== 1);
+    deactivateEmployeeSelect.disabled = result.funcionarios.length === 0;
+    updateEmployeeStatusButtons();
+    deactivateMessageElement.textContent = result.funcionarios.length === 0
+      ? "Não há funcionários cadastrados."
+      : !hasActiveEmployees && hasInactiveEmployees
+        ? "Não há funcionários ativos. Selecione uma conta desativada para reativá-la."
+        : "";
+    deactivateMessageElement.classList.toggle(
+      "form-message--visible",
+      result.funcionarios.length === 0 || (!hasActiveEmployees && hasInactiveEmployees),
+    );
   } catch (error) {
     console.error("Erro ao carregar funcionários para desativação.", error);
     deactivateEmployeeSelect.replaceChildren(new Option("Erro ao carregar funcionários", ""));
+    deactivateEmployeeButtonElement.disabled = true;
+    reactivateEmployeeButtonElement.disabled = true;
     deactivateMessageElement.textContent = formatApiError(
       error,
       "Não foi possível carregar os funcionários.",
     );
     deactivateMessageElement.classList.add("form-message--visible");
   }
+}
+
+function updateEmployeeStatusButtons(): void {
+  const selectedIsActive = deactivateEmployeeSelect.selectedOptions[0]?.dataset.active === "true";
+  deactivateEmployeeButtonElement.disabled =
+    !deactivateEmployeeSelect.value || !selectedIsActive;
+  reactivateEmployeeButtonElement.disabled =
+    !deactivateEmployeeSelect.value || selectedIsActive;
 }
 
 type AccountTypeEmployee = {
@@ -524,7 +632,37 @@ type DailyHistoryEntry = {
   tipo: "insert" | "delete" | "update";
 };
 
+let dailyHistoryEntries: DailyHistoryEntry[] = [];
+
+function formatDailyHistoryEntry(entry: DailyHistoryEntry): string[] {
+  const currencyFormat = new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+  const dateFormat = new Intl.DateTimeFormat("pt-BR");
+  const dateTimeFormat = new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "medium",
+  });
+  return [
+    `${entry.usuarioNome} (ID ${entry.usuarioId})`,
+    String(entry.funcionarioId),
+    entry.funcionarioNome,
+    dateFormat.format(new Date(`${entry.dataDiaria}T00:00:00`)),
+    dateTimeFormat.format(new Date(entry.dataHora)),
+    entry.diariaAnterior === null ? "—" : currencyFormat.format(entry.diariaAnterior),
+    entry.tipo === "delete" ? "Excluída" : currencyFormat.format(entry.diaria),
+    entry.tipo === "insert"
+      ? "Inclusão"
+      : entry.tipo === "update"
+        ? "Alteração"
+        : "Exclusão",
+  ];
+}
+
 async function loadDailyHistory(): Promise<void> {
+  dailyHistoryEntries = [];
+  generateDailyHistoryReportButtonElement.disabled = true;
   sectionMessageElement.textContent = "Carregando histórico...";
   sectionMessageElement.hidden = false;
 
@@ -538,32 +676,10 @@ async function loadDailyHistory(): Promise<void> {
       throw new Error(result.error ?? "Não foi possível carregar o histórico de diárias.");
     }
 
-    const currencyFormat = new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    });
-    const dateFormat = new Intl.DateTimeFormat("pt-BR");
-    const dateTimeFormat = new Intl.DateTimeFormat("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "medium",
-    });
+    dailyHistoryEntries = result.alteracoes;
     const rows = result.alteracoes.map((entry) => {
       const row = document.createElement("tr");
-      const values = [
-        `${entry.usuarioNome} (ID ${entry.usuarioId})`,
-        String(entry.funcionarioId),
-        entry.funcionarioNome,
-        dateFormat.format(new Date(`${entry.dataDiaria}T00:00:00`)),
-        dateTimeFormat.format(new Date(entry.dataHora)),
-        entry.diariaAnterior === null ? "—" : currencyFormat.format(entry.diariaAnterior),
-        entry.tipo === "delete" ? "Excluída" : currencyFormat.format(entry.diaria),
-        entry.tipo === "insert"
-          ? "Inclusão"
-          : entry.tipo === "update"
-            ? "Alteração"
-            : "Exclusão",
-      ];
-      values.forEach((value) => {
+      formatDailyHistoryEntry(entry).forEach((value) => {
         const cell = document.createElement("td");
         cell.textContent = value;
         row.append(cell);
@@ -573,6 +689,7 @@ async function loadDailyHistory(): Promise<void> {
     dailyHistoryBodyElement.replaceChildren(...rows);
     dailyHistoryEmptyElement.hidden = result.alteracoes.length > 0;
     dailyHistoryTableElement.hidden = result.alteracoes.length === 0;
+    generateDailyHistoryReportButtonElement.disabled = false;
     sectionMessageElement.hidden = true;
   } catch (error) {
     console.error("Erro ao carregar o histórico de diárias.", error);
@@ -585,8 +702,12 @@ async function loadDailyHistory(): Promise<void> {
 }
 
 async function renderView(currentView: string): Promise<void> {
-  if (currentAccountType === "Funcionário" && currentView !== "historico-diarias") {
-    currentView = "historico-diarias";
+  if (
+    currentAccountType === "Funcionário" &&
+    currentView !== "pesquisa" &&
+    currentView !== "alterar-senha"
+  ) {
+    currentView = "pesquisa";
     window.history.replaceState(null, "", `/${currentView}`);
   }
 
@@ -597,7 +718,9 @@ async function renderView(currentView: string): Promise<void> {
 
   navItems.forEach((item) => {
     const isCurrent = item.dataset.view === currentView;
-    item.hidden = currentAccountType === "Funcionário" && !isCurrent;
+    item.hidden = currentAccountType === "Funcionário" &&
+      item.dataset.view !== "pesquisa" &&
+      item.dataset.view !== "alterar-senha";
     item.classList.toggle("nav-item--active", isCurrent);
     if (isCurrent) {
       item.setAttribute("aria-current", "page");
@@ -607,18 +730,22 @@ async function renderView(currentView: string): Promise<void> {
   });
 
   pageTitleElement.textContent = section.title;
-  pageDescriptionElement.textContent =
-    currentAccountType === "Funcionário" && currentView === "historico-diarias"
-      ? "Consulte o histórico das diárias vinculadas à sua conta."
-      : section.description;
+  pageDescriptionElement.textContent = currentAccountType === "Funcionário" &&
+      currentView === "pesquisa"
+    ? "Pesquise as diárias vinculadas à sua conta."
+    : section.description;
+  searchEmployeeHelpElement.textContent = currentAccountType === "Funcionário"
+    ? "Sua conta só pode consultar dados do próprio usuário."
+    : "Selecione um ou mais funcionários para pesquisar.";
   document.title = section.title;
   sidebarBrandLinkElement.href =
-    currentAccountType === "Funcionário" ? "/historico-diarias" : "/cadastro";
+    currentAccountType === "Funcionário" ? "/pesquisa" : "/cadastro";
   employeeFormElement.hidden = currentView !== "cadastro";
   dailyFormElement.hidden = currentView !== "diaria";
   deleteFormElement.hidden = currentView !== "excluir";
   deactivateFormElement.hidden = currentView !== "desativar";
   searchFormElement.hidden = currentView !== "pesquisa";
+  changePasswordFormElement.hidden = currentView !== "alterar-senha";
   accountTypeSectionElement.hidden = currentView !== "tipo-conta";
   dailyHistorySectionElement.hidden = currentView !== "historico-diarias";
   sectionMessageElement.hidden = true;
@@ -639,6 +766,8 @@ async function renderView(currentView: string): Promise<void> {
   deactivateMessageElement.textContent = "";
   searchMessageElement.classList.remove("form-message--visible");
   searchMessageElement.textContent = "";
+  changePasswordMessageElement.classList.remove("form-message--visible");
+  changePasswordMessageElement.textContent = "";
   accountTypeMessageElement.classList.remove("form-message--visible");
   accountTypeMessageElement.textContent = "";
   searchResultsElement.hidden = true;
@@ -662,20 +791,66 @@ async function renderView(currentView: string): Promise<void> {
     deleteFormElement.reset();
     deactivateFormElement.reset();
     searchFormElement.reset();
+    changePasswordFormElement.reset();
   }
 }
+
+generateDailyHistoryReportButtonElement.addEventListener("click", () => {
+  const headers = [
+    "Usuário que modificou",
+    "Código do funcionário",
+    "Funcionário",
+    "Data da diária",
+    "Data e hora da modificação",
+    "Valor anterior",
+    "Valor modificado",
+    "Tipo de alteração",
+  ];
+  const rows = [
+    `<Row>${createExcelCell("Histórico de alterações nas diárias")}</Row>`,
+    `<Row>${headers.map(createExcelCell).join("")}</Row>`,
+    ...dailyHistoryEntries.map((entry) =>
+      `<Row>${formatDailyHistoryEntry(entry).map(createExcelCell).join("")}</Row>`
+    ),
+  ];
+  if (dailyHistoryEntries.length === 0) {
+    rows.push(
+      `<Row>${createExcelCell("Nenhuma alteração de diária foi registrada.")}</Row>`,
+    );
+  }
+
+  const workbook = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40">
+  <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office"><Title>Histórico de alterações nas diárias</Title></DocumentProperties>
+  <Worksheet ss:Name="Histórico"><Table>
+    ${rows.join("\n    ")}
+  </Table></Worksheet>
+</Workbook>`;
+  const file = new Blob([workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(file);
+  const downloadLink = document.createElement("a");
+  downloadLink.href = url;
+  downloadLink.download = "historico-de-diarias.xls";
+  document.body.append(downloadLink);
+  downloadLink.click();
+  downloadLink.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
 
 function getCurrentView(): string {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   const currentView = routes[path];
   if (
     currentView &&
-    (currentAccountType !== "Funcionário" || currentView === "historico-diarias")
+    (currentAccountType !== "Funcionário" ||
+      currentView === "pesquisa" ||
+      currentView === "alterar-senha")
   ) {
     return currentView;
   }
 
-  const defaultView = currentAccountType === "Funcionário" ? "historico-diarias" : "cadastro";
+  const defaultView = currentAccountType === "Funcionário" ? "pesquisa" : "cadastro";
   window.history.replaceState(null, "", `/${defaultView}`);
   return defaultView;
 }
@@ -808,6 +983,7 @@ deleteFormElement.addEventListener("submit", async (event: SubmitEvent) => {
 });
 
 deactivateEmployeeSelect.addEventListener("change", () => {
+  updateEmployeeStatusButtons();
   deactivateMessageElement.classList.remove("form-message--visible");
   deactivateMessageElement.textContent = "";
 });
@@ -816,7 +992,7 @@ deactivateFormElement.addEventListener("submit", async (event: SubmitEvent) => {
   event.preventDefault();
   const funcionarioId = Number(deactivateEmployeeSelect.value);
   const selectedEmployee = deactivateEmployeeSelect.selectedOptions[0];
-  if (!funcionarioId || !selectedEmployee || selectedEmployee.disabled) {
+  if (!funcionarioId || !selectedEmployee || selectedEmployee.dataset.active !== "true") {
     deactivateEmployeeSelect.reportValidity();
     return;
   }
@@ -858,7 +1034,48 @@ deactivateFormElement.addEventListener("submit", async (event: SubmitEvent) => {
     );
     deactivateMessageElement.classList.add("form-message--visible");
   } finally {
-    submitButton.disabled = false;
+    updateEmployeeStatusButtons();
+  }
+});
+
+reactivateEmployeeButtonElement.addEventListener("click", async () => {
+  const funcionarioId = Number(deactivateEmployeeSelect.value);
+  const selectedEmployee = deactivateEmployeeSelect.selectedOptions[0];
+  if (!funcionarioId || !selectedEmployee || selectedEmployee.dataset.active !== "false") {
+    deactivateEmployeeSelect.reportValidity();
+    return;
+  }
+
+  deactivateEmployeeButtonElement.disabled = true;
+  reactivateEmployeeButtonElement.disabled = true;
+  deactivateMessageElement.textContent = "Reativando funcionário...";
+  deactivateMessageElement.classList.add("form-message--visible");
+
+  try {
+    const response = await fetch("/api/funcionarios/reativar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ funcionarioId }),
+    });
+    const result = (await response.json()) as { error?: string; message?: string };
+    if (!response.ok) {
+      throw new Error(result.error ?? "Não foi possível reativar o funcionário.");
+    }
+
+    await loadEmployeesForDeactivation();
+    deactivateEmployeeSelect.value = "";
+    deactivateMessageElement.textContent =
+      result.message ?? "Funcionário reativado com sucesso.";
+    deactivateMessageElement.classList.add("form-message--visible");
+  } catch (error) {
+    console.error("Erro ao reativar funcionário.", error);
+    deactivateMessageElement.textContent = formatApiError(
+      error,
+      "Não foi possível reativar o funcionário.",
+    );
+    deactivateMessageElement.classList.add("form-message--visible");
+  } finally {
+    updateEmployeeStatusButtons();
   }
 });
 
@@ -1174,6 +1391,55 @@ searchFormElement.addEventListener("submit", async (event: SubmitEvent) => {
   }
 });
 
+changePasswordFormElement.addEventListener("submit", async (event: SubmitEvent) => {
+  event.preventDefault();
+  changePasswordMessageElement.classList.remove("form-message--visible");
+  changePasswordMessageElement.textContent = "";
+  if (changeNewPasswordInputElement.value !== changeConfirmPasswordInputElement.value) {
+    changePasswordMessageElement.textContent = "As senhas informadas não coincidem.";
+    changePasswordMessageElement.classList.add("form-message--visible");
+    changeConfirmPasswordInputElement.focus();
+    return;
+  }
+
+  const submitButton = changePasswordFormElement.querySelector<HTMLButtonElement>(
+    'button[type="submit"]',
+  );
+  if (!submitButton) {
+    throw new Error("Não foi possível carregar o botão para alterar a senha.");
+  }
+  submitButton.disabled = true;
+  changePasswordMessageElement.textContent = "Atualizando senha...";
+  changePasswordMessageElement.classList.add("form-message--visible");
+
+  try {
+    const response = await fetch("/api/auth/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        senhaAtual: currentPasswordInputElement.value,
+        novaSenha: changeNewPasswordInputElement.value,
+      }),
+    });
+    const result = (await response.json()) as { message?: string; error?: string };
+    if (!response.ok) {
+      throw new Error(result.error ?? "Não foi possível atualizar a senha.");
+    }
+
+    changePasswordFormElement.reset();
+    changePasswordMessageElement.textContent = result.message ?? "Senha atualizada com sucesso.";
+  } catch (error) {
+    console.error("Erro ao alterar a senha.", error);
+    changePasswordMessageElement.textContent = formatApiError(
+      error,
+      "Não foi possível atualizar a senha.",
+    );
+  } finally {
+    changePasswordMessageElement.classList.add("form-message--visible");
+    submitButton.disabled = false;
+  }
+});
+
 type SetupEmployeesResponse = {
   funcionarios?: Array<{ id: number; Nome: string }>;
   primeiroAcesso?: boolean;
@@ -1184,6 +1450,7 @@ function showLogin(message = ""): void {
   appElement.hidden = true;
   authScreenElement.hidden = false;
   currentAccountType = null;
+  currentEmployeeId = null;
   currentEmployeeName = null;
   updateSidebarUser();
   loginFormElement.hidden = false;
@@ -1349,6 +1616,7 @@ loginFormElement.addEventListener("submit", async (event: SubmitEvent) => {
       throw new Error("O servidor não informou o usuário conectado.");
     }
     currentAccountType = result.TipoConta;
+    currentEmployeeId = result.id;
     currentEmployeeName = result.funcionario;
     updateSidebarUser();
     if (result.precisaTrocarSenha) {
@@ -1470,6 +1738,7 @@ async function initializeAuthentication(): Promise<void> {
         throw new Error("O servidor não informou o usuário conectado.");
       }
       currentAccountType = session.TipoConta;
+      currentEmployeeId = session.id;
       currentEmployeeName = session.funcionario;
       updateSidebarUser();
       if (session.precisaTrocarSenha) {

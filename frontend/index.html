@@ -89,11 +89,15 @@
           </a>
           <a class="nav-item" href="/desativar-funcionario" data-view="desativar">
             <span class="nav-item__icon" aria-hidden="true">×</span>
-            <span>Desativar funcionário</span>
+            <span>Desativar e reativar funcionários</span>
           </a>
           <a class="nav-item" href="/pesquisa" data-view="pesquisa">
             <span class="nav-item__icon" aria-hidden="true">⌕</span>
             <span>Pesquisa</span>
+          </a>
+          <a class="nav-item" href="/alterar-senha" data-view="alterar-senha">
+            <span class="nav-item__icon" aria-hidden="true">*</span>
+            <span>Alterar senha</span>
           </a>
           <a class="nav-item" href="/tipo-de-conta" data-view="tipo-conta">
             <span class="nav-item__icon" aria-hidden="true">◉</span>
@@ -189,7 +193,19 @@
             <select id="deactivate-employee" name="funcionarioId" required>
               <option value="">Carregando funcionários...</option>
             </select>
-            <button type="submit">Desativar funcionário</button>
+            <div class="employee-status-actions">
+              <button id="deactivate-employee-button" type="submit" disabled>
+                Desativar funcionário
+              </button>
+              <button
+                id="reactivate-employee-button"
+                class="button-secondary"
+                type="button"
+                disabled
+              >
+                Reativar funcionário
+              </button>
+            </div>
             <p id="deactivate-form-message" class="form-message" role="status" aria-live="polite"></p>
           </form>
           <form id="search-form" class="search-fields" hidden>
@@ -232,6 +248,36 @@
             </div>
             <p id="search-form-message" class="form-message" role="status" aria-live="polite"></p>
           </form>
+          <form id="change-password-form" hidden>
+            <label for="current-password">Senha atual</label>
+            <input
+              id="current-password"
+              name="senhaAtual"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+            <label for="change-new-password">Nova senha</label>
+            <input
+              id="change-new-password"
+              name="novaSenha"
+              type="password"
+              autocomplete="new-password"
+              minlength="8"
+              required
+            />
+            <label for="change-confirm-password">Confirme a nova senha</label>
+            <input
+              id="change-confirm-password"
+              name="confirmacao"
+              type="password"
+              autocomplete="new-password"
+              minlength="8"
+              required
+            />
+            <button type="submit">Alterar senha</button>
+            <p id="change-password-message" class="form-message" role="status" aria-live="polite"></p>
+          </form>
           <section id="account-type-section" class="account-type-section" aria-label="Atribuição de tipo de conta" hidden>
             <form id="account-type-form">
               <div class="account-type-fields">
@@ -272,7 +318,16 @@
             </div>
           </section>
           <section id="daily-history-section" class="search-results" aria-live="polite" hidden>
-            <h2 class="search-results__title">Alterações nas diárias</h2>
+            <div class="daily-history__header">
+              <h2 class="search-results__title">Alterações nas diárias</h2>
+              <button
+                id="generate-daily-history-report"
+                type="button"
+                disabled
+              >
+                Gerar relatório
+              </button>
+            </div>
             <p id="daily-history-empty" class="search-results__empty" hidden>
               Nenhuma alteração de diária foi registrada.
             </p>

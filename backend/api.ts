@@ -707,12 +707,12 @@ export function employeeApi(): Plugin {
 
     if (path === "/api/auth/password" && request.method === "POST") {
       const current = getSession(request);
-      if (!current || !current.session.precisaTrocarSenha) {
-        sendJson(response, 403, { error: "Não há troca de senha pendente." });
+      if (!current) {
+        sendJson(response, 401, { error: "Faça login para continuar." });
         return;
       }
       readBody(request, response, (body) => {
-        const record = body as { novaSenha?: unknown } | null;
+        const record = body as { senhaAtual?: unknown; novaSenha?: unknown } | null;
         if (
           typeof record?.novaSenha !== "string" ||
           record.novaSenha.length < 8 ||
@@ -722,6 +722,26 @@ export function employeeApi(): Plugin {
           return;
         }
         try {
+          if (!current.session.precisaTrocarSenha) {
+            if (typeof record.senhaAtual !== "string" || !record.senhaAtual) {
+              sendJson(response, 400, { error: "Informe sua senha atual." });
+              return;
+            }
+            const employee = database.prepare(
+              "SELECT SenhaHash FROM funcionarios WHERE id = ? AND Ativo = 1",
+            ).get(current.session.funcionarioId) as { SenhaHash: string | null } | undefined;
+            if (!employee) {
+              sessions.delete(current.token);
+              clearSessionCookie(request, response);
+              sendJson(response, 401, { error: "Funcionário não encontrado ou desativado." });
+              return;
+            }
+            if (!employee.SenhaHash || !verifyPassword(record.senhaAtual, employee.SenhaHash)) {
+              sendJson(response, 400, { error: "A senha atual está incorreta." });
+              return;
+            }
+          }
+
           const result = database.prepare(
             "UPDATE funcionarios SET SenhaHash = ?, PrecisaTrocarSenha = 0 WHERE id = ? AND Ativo = 1",
           ).run(hashPassword(record.novaSenha), current.session.funcionarioId);
@@ -781,9 +801,10 @@ export function employeeApi(): Plugin {
       return;
     }
     const path = request.url?.split("?")[0] ?? "";
-    const isDailyHistoryAccess =
-      path === "/api/diarias/historico" && request.method === "GET";
-    if (employee.TipoConta === "Funcionário" && !isDailyHistoryAccess) {
+    const isEmployeeSearchAccess =
+      (path === "/api/funcionarios" && request.method === "GET") ||
+      (path === "/api/pesquisa" && request.method === "POST");
+    if (employee.TipoConta === "Funcionário" && !isEmployeeSearchAccess) {
       sendJson(response, 403, { error: "Sua conta não tem acesso a esta funcionalidade." });
       return;
     }
@@ -796,9 +817,29 @@ export function employeeApi(): Plugin {
   ) => {
     if (request.method === "GET") {
       try {
-        const funcionarios = database
-          .prepare("SELECT id, Nome, Ativo FROM funcionarios WHERE Ativo = 1 AND TipoConta <> 'ADM' ORDER BY Nome COLLATE NOCASE")
-          .all();
+        const current = getSession(request);
+        if (!current) {
+          sendJson(response, 401, { error: "Faça login para continuar." });
+          return;
+        }
+        const account = database.prepare(
+          "SELECT TipoConta FROM funcionarios WHERE id = ? AND Ativo = 1",
+        ).get(current.session.funcionarioId) as { TipoConta: "Funcionário" | "ADM" } | undefined;
+        if (!account) {
+          sendJson(response, 401, { error: "Funcionário não encontrado ou desativado." });
+          return;
+        }
+        const funcionarios = account.TipoConta === "Funcionário"
+          ? database.prepare(`
+            SELECT id, Nome, Ativo FROM funcionarios
+            WHERE id = ? AND Ativo = 1 AND TipoConta <> 'ADM'
+            ORDER BY Nome COLLATE NOCASE
+          `).all(current.session.funcionarioId)
+          : database.prepare(`
+            SELECT id, Nome, Ativo FROM funcionarios
+            WHERE Ativo = 1 AND TipoConta <> 'ADM'
+            ORDER BY Nome COLLATE NOCASE
+          `).all();
         sendJson(response, 200, { funcionarios });
       } catch (error) {
         console.error("Não foi possível carregar os funcionários.", error);
@@ -918,6 +959,44 @@ export function employeeApi(): Plugin {
       } catch (error) {
         console.error("Não foi possível desativar o funcionário.", error);
         sendJson(response, 500, { error: "Não foi possível desativar o funcionário." });
+      }
+    });
+  };
+
+  const reactivateEmployeeHandler = (
+    request: IncomingMessage,
+    response: ServerResponse,
+  ) => {
+    if (request.method !== "POST") {
+      response.writeHead(405, { Allow: "POST", "Content-Type": "application/json" });
+      response.end(JSON.stringify({ error: "Método não permitido." }));
+      return;
+    }
+
+    readBody(request, response, (body) => {
+      const record = body as { funcionarioId?: unknown } | null;
+      const funcionarioId = record?.funcionarioId;
+      if (
+        typeof funcionarioId !== "number" ||
+        !Number.isSafeInteger(funcionarioId) ||
+        funcionarioId <= 0
+      ) {
+        sendJson(response, 400, { error: "Selecione um funcionário válido." });
+        return;
+      }
+
+      try {
+        const result = database.prepare(
+          "UPDATE funcionarios SET Ativo = 1 WHERE id = ? AND Ativo = 0",
+        ).run(funcionarioId);
+        if (result.changes === 0) {
+          sendJson(response, 404, { error: "Funcionário não encontrado ou já está ativo." });
+          return;
+        }
+        sendJson(response, 200, { message: "Funcionário reativado com sucesso." });
+      } catch (error) {
+        console.error("Não foi possível reativar o funcionário.", error);
+        sendJson(response, 500, { error: "Não foi possível reativar o funcionário." });
       }
     });
   };
@@ -1279,6 +1358,26 @@ export function employeeApi(): Plugin {
       }
 
       try {
+        const current = getSession(request);
+        if (!current) {
+          sendJson(response, 401, { error: "Faça login para continuar." });
+          return;
+        }
+        const account = database.prepare(
+          "SELECT TipoConta FROM funcionarios WHERE id = ? AND Ativo = 1",
+        ).get(current.session.funcionarioId) as { TipoConta: "Funcionário" | "ADM" } | undefined;
+        if (!account) {
+          sendJson(response, 401, { error: "Funcionário não encontrado ou desativado." });
+          return;
+        }
+        if (
+          account.TipoConta === "Funcionário" &&
+          (funcionarioIds.length !== 1 || funcionarioIds[0] !== current.session.funcionarioId)
+        ) {
+          sendJson(response, 403, { error: "Funcionário só pode pesquisar os próprios dados." });
+          return;
+        }
+
         const placeholders = funcionarioIds.map(() => "?").join(", ");
         const eligibleEmployees = database.prepare(`
           SELECT id FROM funcionarios
@@ -1342,6 +1441,7 @@ export function employeeApi(): Plugin {
       server.middlewares.use("/api/funcionarios/tipo-conta", accountTypeHandler);
       server.middlewares.use("/api/funcionarios/excluir", deleteEmployeeHandler);
       server.middlewares.use("/api/funcionarios/desativar", deactivateEmployeeHandler);
+      server.middlewares.use("/api/funcionarios/reativar", reactivateEmployeeHandler);
       server.middlewares.use("/api/funcionarios", employeesHandler);
       server.middlewares.use("/api/diarias/excluir", deleteDailyHandler);
       server.middlewares.use("/api/diarias/historico", dailyHistoryHandler);
@@ -1356,6 +1456,7 @@ export function employeeApi(): Plugin {
       server.middlewares.use("/api/funcionarios/tipo-conta", accountTypeHandler);
       server.middlewares.use("/api/funcionarios/excluir", deleteEmployeeHandler);
       server.middlewares.use("/api/funcionarios/desativar", deactivateEmployeeHandler);
+      server.middlewares.use("/api/funcionarios/reativar", reactivateEmployeeHandler);
       server.middlewares.use("/api/funcionarios", employeesHandler);
       server.middlewares.use("/api/diarias/excluir", deleteDailyHandler);
       server.middlewares.use("/api/diarias/historico", dailyHistoryHandler);
