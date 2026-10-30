@@ -6,6 +6,7 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
     "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
@@ -15,5 +16,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["backend/api.ts", "frontend/src/main.ts", "vite.config.ts"]
+  "include": ["backend/**/*.ts", "frontend/src/**/*.ts", "frontend/src/**/*.tsx", "server/vite.config.ts"]
 }
